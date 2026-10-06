@@ -37,8 +37,26 @@ export const CROP_LIST: CropId[] = ["carrot", "tomato", "strawberry"];
 export const ITEM_LABELS: Record<ItemId, string> = {
   carrot_seed: "Sabzi urug'i", tomato_seed: "Pomidor urug'i", strawberry_seed: "Qulupnay urug'i",
   carrot: "Sabzi", tomato: "Pomidor", strawberry: "Qulupnay", wood: "Yog'och", stone: "Tosh",
-  mushroom: "Qo'ziqorin",
+  mushroom: "Qo'ziqorin", milk: "Sut", egg: "Tuxum", fish: "Baliq",
 };
+
+export const ITEM_DESC: Partial<Record<ItemId, string>> = {
+  milk: "Moldan olingan yangi sut",
+  egg: "Tovuq tuxumi",
+  fish: "Ko'ldan tutilgan baliq",
+  carrot: "Yangi yig'ilgan sabzi",
+  tomato: "Yetilgan pomidor",
+  strawberry: "Shirin qulupnay",
+};
+
+export const SELL_PRICE: Partial<Record<ItemId, number>> = {
+  milk: 12, egg: 8, fish: 15, wood: 5, stone: 4, mushroom: 10,
+};
+
+/** Animal collect cooldown (ms) */
+export const ANIMAL_COOLDOWN = 25000;
+export const FISH_COOLDOWN = 12000;
+
 
 export const QUEST_DEFS: Record<QuestId, QuestDefinition> = {
   clear_garden: { id: "clear_garden", title: "Bog'ni tozalash", objective: "5 ta begona o'tni yuling", target: 5, rewardLabel: "20 tanga", next: "first_seeds" },
@@ -60,5 +78,6 @@ export function emptyInv(): Record<ItemId, number> {
   return {
     carrot_seed: 3, tomato_seed: 1, strawberry_seed: 0,
     carrot: 0, tomato: 0, strawberry: 0, wood: 0, stone: 0, mushroom: 0,
+    milk: 0, egg: 0, fish: 0,
   };
 }
