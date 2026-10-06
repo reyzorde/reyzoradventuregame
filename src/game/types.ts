@@ -1,9 +1,9 @@
-
 export type CropId = "carrot" | "tomato" | "strawberry";
 export type CropState = "EMPTY" | "TILLED" | "PLANTED" | "WATERED" | "GROWING" | "READY";
 export type ItemId =
   | "carrot_seed" | "tomato_seed" | "strawberry_seed"
-  | "carrot" | "tomato" | "strawberry" | "wood" | "stone" | "mushroom";
+  | "carrot" | "tomato" | "strawberry" | "wood" | "stone" | "mushroom"
+  | "milk" | "egg" | "fish";
 export type Facing = "down" | "left" | "right" | "up";
 export type QuestId =
   | "clear_garden" | "first_seeds" | "need_water" | "first_harvest" | "help_village"
@@ -20,7 +20,21 @@ export interface PlotState {
 export interface QuestDefinition {
   id: QuestId; title: string; objective: string; target: number; rewardLabel: string; next: QuestId | null;
 }
-export interface DialogueLine { speaker: string; text: string; }
+export interface DialogueLine {
+  speaker: string;
+  text: string;
+  portrait?: string;
+}
+
+export type AnimalKind = "cow" | "chicken" | "fish";
+export interface AnimalSave {
+  id: string;
+  kind: AnimalKind;
+  x: number;
+  y: number;
+  lastCollect: number;
+}
+
 export interface GameSave {
   version: number;
   player: { x: number; y: number; facing: Facing };
@@ -35,7 +49,10 @@ export interface GameSave {
   tutorialStep: number;
   miraIntroDone: boolean;
   miraCarrotsGiven: boolean;
+  animals: AnimalSave[];
+  audio: { music: number; sfx: number };
 }
+
 export interface HudSnapshot {
   coins: number; water: number; waterMax: number; day: number; clock: string;
   inventory: Record<ItemId, number>; selectedSeed: CropId | null;
@@ -43,9 +60,15 @@ export interface HudSnapshot {
   interactHint: string | null; tutorial: string | null;
   notices: { id: string; text: string }[];
   dialogue: DialogueLine | null;
-  shopOpen: boolean; inventoryOpen: boolean;
-  menu: "main" | "none"; hasSave: boolean; playing: boolean;
+  shopOpen: boolean; inventoryOpen: boolean; mapOpen: boolean;
+  questCollapsed: boolean;
+  menu: "main" | "confirm_new" | "none";
+  hasSave: boolean;
+  playing: boolean;
+  playerX: number; playerY: number;
+  musicVol: number; sfxVol: number;
 }
+
 declare global {
   interface Window {
     __controlsTest?: {

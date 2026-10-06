@@ -1,6 +1,5 @@
-
 import { DAY_START, SAVE_KEY, SAVE_VERSION, START_COINS, WATER_MAX, emptyInv } from "../config";
-import { INITIAL_PLOTS, PLAYER_SPAWN } from "../data/map";
+import { INITIAL_ANIMALS, INITIAL_PLOTS, PLAYER_SPAWN } from "../data/map";
 import type { GameSave, PlotState } from "../types";
 
 export function createNewSave(): GameSave {
@@ -20,6 +19,8 @@ export function createNewSave(): GameSave {
     tutorialStep: 0,
     miraIntroDone: false,
     miraCarrotsGiven: false,
+    animals: INITIAL_ANIMALS.map((a) => ({ ...a })),
+    audio: { music: 0.35, sfx: 0.7 },
   };
 }
 
@@ -56,6 +57,8 @@ export function loadSave(): GameSave | null {
       plots: mergePlots(base.plots, p.plots),
       weedsCleared: p.weedsCleared ?? [],
       pickupsTaken: p.pickupsTaken ?? [],
+      animals: p.animals?.length ? p.animals : base.animals.map((a) => ({ ...a })),
+      audio: { music: 0.35, sfx: 0.7, ...p.audio },
     };
   } catch { return null; }
 }

@@ -1,7 +1,10 @@
-
 let ctx: AudioContext | null = null;
 let unlocked = false;
 let walkCd = 0;
+let sfxVol = 0.7;
+let musicVol = 0.35;
+let musicNodes: { o: OscillatorNode; g: GainNode }[] | null = null;
+let musicTimer: number | null = null;
 
 function ac(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -20,18 +23,75 @@ export function unlockAudio(): void {
   unlocked = true;
 }
 
+export function setSfxVolume(v: number): void {
+  sfxVol = Math.max(0, Math.min(1, v));
+}
+
+export function setMusicVolume(v: number): void {
+  musicVol = Math.max(0, Math.min(1, v));
+  if (musicNodes) {
+    for (const n of musicNodes) {
+      n.g.gain.setTargetAtTime(0.012 * musicVol, ac()!.currentTime, 0.05);
+    }
+  }
+}
+
+export function getVolumes(): { music: number; sfx: number } {
+  return { music: musicVol, sfx: sfxVol };
+}
+
 function tone(freq: number, dur: number, type: OscillatorType, gain = 0.05, slide = 0): void {
   const a = ac();
-  if (!a || !unlocked) return;
+  if (!a || !unlocked || sfxVol <= 0.01) return;
   const o = a.createOscillator();
   const g = a.createGain();
   o.type = type;
   o.frequency.setValueAtTime(freq, a.currentTime);
   if (slide) o.frequency.linearRampToValueAtTime(freq + slide, a.currentTime + dur);
-  g.gain.setValueAtTime(gain, a.currentTime);
+  const vol = gain * sfxVol;
+  g.gain.setValueAtTime(vol, a.currentTime);
   g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
-  o.connect(g); g.connect(a.destination);
-  o.start(); o.stop(a.currentTime + dur + 0.02);
+  o.connect(g);
+  g.connect(a.destination);
+  o.start();
+  o.stop(a.currentTime + dur + 0.02);
+}
+
+export function startMusic(): void {
+  const a = ac();
+  if (!a || !unlocked || musicNodes) return;
+  const notes = [196, 247, 294, 330];
+  musicNodes = notes.map((f, i) => {
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = "sine";
+    o.frequency.value = f;
+    g.gain.value = 0.01 * musicVol * (i === 0 ? 1.2 : 0.7);
+    o.connect(g);
+    g.connect(a.destination);
+    o.start();
+    return { o, g };
+  });
+  let i = 0;
+  musicTimer = window.setInterval(() => {
+    if (!musicNodes || !a) return;
+    const f = notes[i % notes.length];
+    musicNodes[0].o.frequency.setTargetAtTime(f, a.currentTime, 0.4);
+    i++;
+  }, 2400);
+}
+
+export function stopMusic(): void {
+  if (musicTimer != null) {
+    clearInterval(musicTimer);
+    musicTimer = null;
+  }
+  if (musicNodes) {
+    for (const n of musicNodes) {
+      try { n.o.stop(); } catch { /* */ }
+    }
+    musicNodes = null;
+  }
 }
 
 export function sfx(id: string, now = 0): void {
@@ -45,10 +105,16 @@ export function sfx(id: string, now = 0): void {
     case "coin": tone(880, 0.07, "square", 0.035, 200); tone(1320, 0.12, "square", 0.025); break;
     case "quest": tone(392, 0.12, "triangle", 0.05); tone(523, 0.16, "triangle", 0.05); tone(659, 0.22, "triangle", 0.045); break;
     case "talk": tone(300, 0.05, "sine", 0.03); break;
+    case "pickup": tone(640, 0.07, "triangle", 0.04, 100); break;
+    case "milk": tone(280, 0.1, "sine", 0.04, 60); break;
+    case "egg": tone(420, 0.08, "triangle", 0.035); break;
+    case "fish": tone(360, 0.1, "sine", 0.04, -40); tone(280, 0.12, "sine", 0.03); break;
+    case "boundary": tone(160, 0.12, "sawtooth", 0.025, -40); break;
+    case "open": tone(400, 0.06, "triangle", 0.035, 80); break;
     case "walk":
-      if (now - walkCd < 280) return;
+      if (now - walkCd < 300) return;
       walkCd = now;
-      tone(90, 0.04, "sine", 0.02);
+      tone(90, 0.04, "sine", 0.018);
       break;
   }
 }
