@@ -34,6 +34,7 @@ export function isWalkableTile(t: number): boolean {
 export function createGrid(): number[] {
   const g = new Array(MAP_COLS * MAP_ROWS).fill(T.Grass);
 
+  // Soft grass variation + sparse wildflowers (natural, not noisy)
   for (let i = 0; i < g.length; i++) {
     const n = (i * 1103515245 + 12345) >>> 0;
     if (n % 7 === 0) g[i] = T.Grass2;
@@ -50,10 +51,13 @@ export function createGrid(): number[] {
     }
   };
 
+  // Northern water + shore band
   fill(0, 0, MAP_COLS, 6, T.Water);
   fill(0, 6, MAP_COLS, 1, T.Shore);
+  // Small pier
   fill(34, 4, 4, 3, T.Wood);
 
+  // Path painter — width in tiles
   const path = (x0: number, y0: number, x1: number, y1: number, w = 2) => {
     let x = x0;
     let y = y0;
@@ -66,27 +70,39 @@ export function createGrid(): number[] {
     fill(x1 - half, y1 - half, w, w, T.Path);
   };
 
+  // === Road network (connects all hubs) ===
+  // Main east–west spine
   path(8, 20, 56, 20, 2);
+  // House spur (west)
   path(8, 14, 8, 20, 2);
   path(8, 14, 12, 14, 2);
-  path(8, 20, 12, 28, 2);
+  // Barn spur (west of house / south of spur)
+  path(8, 18, 7, 18, 2);
+  path(7, 18, 7, 20, 2);
+  // Garden access
   path(16, 20, 16, 16, 2);
   path(16, 16, 28, 16, 2);
   path(28, 16, 28, 20, 2);
   path(28, 16, 30, 16, 2);
+  // Village north–south
   path(36, 8, 36, 40, 3);
   path(36, 20, 46, 20, 2);
   path(46, 20, 46, 24, 2);
+  // Forest approach
   path(36, 14, 56, 14, 2);
   path(56, 14, 56, 12, 2);
+  // South loops
   path(20, 20, 20, 24, 2);
   path(20, 24, 24, 24, 2);
   path(42, 20, 42, 16, 2);
   path(48, 24, 52, 24, 2);
   path(52, 24, 52, 20, 2);
 
+  // Farm plots dirt
   fill(17, 15, 12, 6, T.Dirt);
+  // House yard
   fill(6, 13, 7, 5, T.Dirt);
+  // Village plaza
   fill(42, 18, 9, 8, T.Cobble);
 
   return g;
@@ -154,11 +170,11 @@ export const OBJECTS: WorldObj[] = [
   {
     id: "barn",
     kind: "barn",
-    tx: 12,
-    ty: 27,
+    tx: 7,
+    ty: 18,
     collide: true,
     interact: true,
-    body: { ox: 24, oy: 78, w: 100, h: 36 },
+    body: { ox: 20, oy: 100, w: 100, h: 32 },
   },
   {
     id: "well",
