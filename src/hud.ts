@@ -100,7 +100,6 @@ function playHtml(h: HudSnapshot): string {
     <div class="top">
       <div class="panel pill no-pointer">🪙 ${h.coins}</div>
       <div class="panel pill no-pointer">💧 ${h.water}/${h.waterMax}</div>
-      <div class="panel pill no-pointer">Kun ${h.day} · ${h.clock}</div>
       <div style="display:flex;gap:6px">
         <button class="panel pill hit" data-act="map" title="Xarita">🗺️</button>
         <button class="panel pill hit" data-act="inv" title="Sumka">🎒</button>
@@ -182,16 +181,19 @@ function shopHtml(h: HudSnapshot): string {
 }
 
 function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
-  el.querySelector('[data-act="new"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.requestNewGame(); });
-  el.querySelector('[data-act="continue"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.continueGame(); });
-  el.querySelector('[data-act="confirm-new"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.confirmNewGame(); });
-  el.querySelector('[data-act="cancel-new"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.cancelNewGame(); });
-  el.querySelector('[data-act="dlg"]')?.addEventListener("click", () => model.advanceDialogue());
-  el.querySelector('[data-act="inv"]')?.addEventListener("click", () => model.toggleInventory());
-  el.querySelector('[data-act="map"]')?.addEventListener("click", () => model.toggleMap());
-  el.querySelector('[data-act="toggle-quest"]')?.addEventListener("click", () => model.toggleQuestPanel());
-  el.querySelector('[data-act="close-shop"]')?.addEventListener("click", () => model.closeShop());
-  el.querySelector('[data-act="e"]')?.addEventListener("click", () => { model.interactQueued = true; });
+  const on = (sel: string, fn: () => void) => {
+    el.querySelectorAll(sel).forEach((n) => n.addEventListener("click", (e) => { e.stopPropagation(); fn(); }));
+  };
+  on('[data-act="new"]', () => { unlockAudio(); sfx("ui"); model.requestNewGame(); });
+  on('[data-act="continue"]', () => { unlockAudio(); sfx("ui"); model.continueGame(); });
+  on('[data-act="confirm-new"]', () => { unlockAudio(); sfx("ui"); model.confirmNewGame(); });
+  on('[data-act="cancel-new"]', () => { unlockAudio(); sfx("ui"); model.cancelNewGame(); });
+  on('[data-act="dlg"]', () => model.advanceDialogue());
+  on('[data-act="inv"]', () => model.toggleInventory());
+  on('[data-act="map"]', () => model.toggleMap());
+  on('[data-act="toggle-quest"]', () => model.toggleQuestPanel());
+  on('[data-act="close-shop"]', () => model.closeShop());
+  on('[data-act="e"]', () => { model.interactQueued = true; });
   el.querySelectorAll<HTMLElement>("[data-seed]").forEach((b) => {
     b.addEventListener("click", () => model.selectSeed(b.dataset.seed as CropId));
   });
