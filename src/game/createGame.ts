@@ -64,7 +64,7 @@ export function createGame(parent: HTMLElement): GameHandle {
     backgroundColor: "#7ec8e3",
     antialias: true,
     roundPixels: true,
-    scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: "arcade", arcade: { gravity: { x: 0, y: 0 }, debug: false } },
     scene: [BootScene, GardenScene],
     input: { keyboard: true },
