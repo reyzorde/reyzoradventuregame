@@ -1,4 +1,6 @@
-import { CROP_CONFIGS, CROP_LIST, ITEM_LABELS } from "./game/config";
+import { CROP_CONFIGS, CROP_LIST, ITEM_DESC, ITEM_LABELS, SELL_PRICE } from "./game/config";
+import { MAP_COLS, MAP_ROWS, WORLD_H, WORLD_W } from "./game/config";
+import { MAP_LANDMARKS } from "./game/data/map";
 import type { GameModel } from "./game/systems/GameModel";
 import { sfx, unlockAudio } from "./game/systems/AudioSystem";
 import type { CropId, HudSnapshot, ItemId } from "./game/types";
@@ -6,7 +8,9 @@ import type { CropId, HudSnapshot, ItemId } from "./game/types";
 export function mountHud(el: HTMLElement, model: GameModel): () => void {
   const render = () => {
     const h = model.snapshot();
-    el.innerHTML = h.menu === "main" ? menuHtml(h) : playHtml(h);
+    if (h.menu === "main") el.innerHTML = menuHtml(h);
+    else if (h.menu === "confirm_new") el.innerHTML = confirmNewHtml();
+    else el.innerHTML = playHtml(h);
     bind(el, model, h);
   };
   const unsub = model.sub(render);
@@ -15,19 +19,42 @@ export function mountHud(el: HTMLElement, model: GameModel): () => void {
 }
 
 function menuHtml(h: HudSnapshot): string {
+  const actions = h.hasSave
+    ? `<button class="btn-p" data-act="continue">Davom etish</button>
+        <button class="btn-s" data-act="new">Yangi o'yin</button>`
+    : `<button class="btn-p" data-act="new">Yangi o'yin</button>`;
   return `<div class="menu-overlay hit" style="background-image:url('/art/cover.jpg')">
     <div class="panel menu-card">
-      <p class="eyebrow">Level 1–2</p>
+      <p class="eyebrow">Level 1</p>
       <h1>Reyzor Adventure</h1>
-      <p class="subtitle">Yangi Bog' + O'rmon</p>
-      <p class="blurb">Shahar shovqinidan charchadingiz. Bobongizdan meros qolgan kichik bog' va uning orqasidagi o'rmon sizni kutmoqda.</p>
-      <div class="menu-actions">
-        <button class="btn-p" data-act="new">Yangi o'yin</button>
-        <button class="btn-s" data-act="continue" ${h.hasSave ? "" : "disabled"}>Davom etish</button>
-      </div>
-      <p class="hint">WASD / strelkalar — yurish · E — o'zaro ta'sir · 1–3 urug' · I inventar</p>
+      <p class="subtitle">Yangi Bog'</p>
+      <p class="blurb">Bobongizdan meros qolgan kichik bog' sizni kutmoqda.</p>
+      <div class="menu-actions">${actions}</div>
+      <p class="hint">WASD — yurish · E — ta'sir · I — sumka · M — xarita · 1–3 urug'</p>
     </div>
   </div>`;
+}
+
+function confirmNewHtml(): string {
+  return `<div class="menu-overlay hit" style="background-image:url('/art/cover.jpg')">
+    <div class="panel menu-card">
+      <p class="eyebrow">Diqqat</p>
+      <h1>Yangi o'yin?</h1>
+      <p class="blurb">Eski o'yin o'chiriladi. Davom etasizmi?</p>
+      <div class="menu-actions">
+        <button class="btn-p" data-act="confirm-new">Ha, yangi o'yin</button>
+        <button class="btn-s" data-act="cancel-new">Bekor qilish</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function portraitEmoji(speaker: string): string {
+  const s = speaker.toLowerCase();
+  if (s.includes("mira")) return "👩";
+  if (s.includes("tom")) return "👨";
+  if (s.includes("reyzor") || s.includes("siz")) return "🧑‍🌾";
+  return "💬";
 }
 
 function playHtml(h: HudSnapshot): string {
@@ -37,42 +64,110 @@ function playHtml(h: HudSnapshot): string {
     const n = h.inventory[cfg.seedItem] ?? 0;
     const on = h.selectedSeed === c ? "on" : "";
     const ic = c === "carrot" ? "🥕" : c === "tomato" ? "🍅" : "🍓";
-    return `<button class="slot ${on}" data-seed="${c}"><span class="ic">${ic}</span><span>${i + 1}</span><span>${n}</span></button>`;
+    return `<button class="slot ${on}" data-seed="${c}" title="${cfg.nameUz}"><span class="ic">${ic}</span><span>${i + 1}</span><span>${n}</span></button>`;
   }).join("");
+
   const notes = h.notices.map((n) => `<div class="panel note">${n.text}</div>`).join("");
+
   const dlg = h.dialogue
-    ? `<button class="panel dlg hit" data-act="dlg">${h.dialogue.speaker ? `<p class="sp">${h.dialogue.speaker}</p>` : ""}<p class="tx">${h.dialogue.text}</p><p class="ct">Davom etish uchun bosing / E</p></button>`
+    ? `<div class="dlg-wrap hit">
+        <div class="panel dlg-card">
+          <div class="dlg-head">
+            <div class="dlg-av">${portraitEmoji(h.dialogue.speaker)}</div>
+            <div class="dlg-meta">
+              <p class="dlg-name">${h.dialogue.speaker || "???"}</p>
+              <p class="dlg-role">Suhbat</p>
+            </div>
+          </div>
+          <p class="dlg-text" id="dlg-text">${h.dialogue.text}</p>
+          <button class="dlg-next" data-act="dlg">Davom etish →</button>
+        </div>
+      </div>`
     : "";
+
   const shop = h.shopOpen ? shopHtml(h) : "";
   const inv = h.inventoryOpen ? invHtml(h) : "";
-  return `
-    <div class="top">
-      <div class="panel pill no-pointer">Bog'bon · Reyzor</div>
-      <div style="display:flex;gap:8px">
-        <div class="panel pill no-pointer">🪙 ${h.coins}</div>
-        <div class="panel pill no-pointer">💧 ${h.water}/${h.waterMax}</div>
-        <div class="panel pill no-pointer">Kun ${h.day} · ${h.clock}</div>
-      </div>
-    </div>
-    <div class="panel quest no-pointer">
-      <div class="lab">Topshiriq</div>
-      <h3>${h.questTitle}</h3>
+  const map = h.mapOpen ? mapHtml(h) : "";
+
+  const questBody = h.questCollapsed
+    ? ""
+    : `<h3>${h.questTitle}</h3>
       <p>${h.questObjective}</p>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="meta"><span>${h.questProgress}/${h.questTarget}</span>${h.questReward ? `<span>Mukofot: ${h.questReward}</span>` : ""}</div>
+      <div class="meta"><span>${h.questProgress}/${h.questTarget}</span>${h.questReward ? `<span>${h.questReward}</span>` : ""}</div>`;
+
+  return `
+    <div class="top">
+      <div class="panel pill no-pointer">🪙 ${h.coins}</div>
+      <div class="panel pill no-pointer">💧 ${h.water}/${h.waterMax}</div>
+      <div class="panel pill no-pointer">Kun ${h.day} · ${h.clock}</div>
+      <div style="display:flex;gap:6px">
+        <button class="panel pill hit" data-act="map" title="Xarita">🗺️</button>
+        <button class="panel pill hit" data-act="inv" title="Sumka">🎒</button>
+      </div>
+    </div>
+    <div class="panel quest ${h.questCollapsed ? "collapsed" : ""} no-pointer">
+      <div class="quest-head hit" data-act="toggle-quest">
+        <div class="lab">Topshiriq</div>
+        <button class="qmin" type="button">${h.questCollapsed ? "▾" : "▴"}</button>
+      </div>
+      ${questBody}
     </div>
     ${h.tutorial ? `<div class="panel tut no-pointer">${h.tutorial}</div>` : ""}
     ${h.interactHint ? `<div class="ih no-pointer">${h.interactHint}</div>` : ""}
     <div class="hot hit">${slots}
-      <div class="slot no-pointer"><span class="ic">💧</span><span>${h.water}/${h.waterMax}</span></div>
-      <button class="slot" data-act="inv"><span class="ic">🎒</span><span>I</span></button>
+      <div class="slot no-pointer"><span class="ic">💧</span><span>${h.water}</span></div>
     </div>
     <div class="notes no-pointer">${notes}</div>
-    ${dlg}${shop}${inv}
+    ${dlg}${shop}${inv}${map}
     <div class="mob hit">
       <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
       <button class="be" data-act="e">E</button>
     </div>`;
+}
+
+function invHtml(h: HudSnapshot): string {
+  const entries = (Object.entries(h.inventory) as [ItemId, number][]).filter(([, n]) => n > 0);
+  const items = entries.length
+    ? entries.map(([id, n]) => {
+        const sell = SELL_PRICE[id];
+        const desc = ITEM_DESC[id] ?? "";
+        return `<div class="iitem">
+          <div class="ihead"><b>${ITEM_LABELS[id]}</b><span>×${n}</span></div>
+          ${desc ? `<p class="idesc">${desc}</p>` : ""}
+          ${sell ? `<button class="s" data-sell-item="${id}">Sotish (${sell}🪙)</button>` : ""}
+        </div>`;
+      }).join("")
+    : `<p class="empty">Sumka bo'sh</p>`;
+  return `<div class="modal hit"><div class="panel mcard wide">
+    <div class="mh"><div><p class="eyebrow">Sumka</p><h2>Inventar</h2></div>
+    <button class="xbtn" data-act="inv">✕</button></div>
+    <div class="igrid">${items}</div>
+    <div class="vol-row">
+      <label>Musiqa <input type="range" min="0" max="100" value="${Math.round(h.musicVol * 100)}" data-vol="music" /></label>
+      <label>Effekt <input type="range" min="0" max="100" value="${Math.round(h.sfxVol * 100)}" data-vol="sfx" /></label>
+    </div>
+  </div></div>`;
+}
+
+function mapHtml(h: HudSnapshot): string {
+  const px = (h.playerX / WORLD_W) * 100;
+  const py = (h.playerY / WORLD_H) * 100;
+  const marks = MAP_LANDMARKS.map((m) => {
+    const x = ((m.tx + 0.5) / MAP_COLS) * 100;
+    const y = ((m.ty + 0.5) / MAP_ROWS) * 100;
+    return `<span class="ml" style="left:${x}%;top:${y}%" title="${m.label}">${m.label[0]}</span>`;
+  }).join("");
+  return `<div class="modal hit"><div class="panel mcard wide">
+    <div class="mh"><div><p class="eyebrow">Jahon</p><h2>Xarita</h2></div>
+    <button class="xbtn" data-act="map">✕</button></div>
+    <div class="minimap">
+      <div class="mmap-bg"></div>
+      ${marks}
+      <span class="mplayer" style="left:${px}%;top:${py}%"></span>
+    </div>
+    <p class="hint">Siz — sariq nuqta. Harflar — muhim joylar.</p>
+  </div></div>`;
 }
 
 function shopHtml(h: HudSnapshot): string {
@@ -86,18 +181,15 @@ function shopHtml(h: HudSnapshot): string {
     <button class="xbtn" data-act="close-shop">✕</button></div>${rows}</div></div>`;
 }
 
-function invHtml(h: HudSnapshot): string {
-  const items = (Object.entries(h.inventory) as [ItemId, number][])
-    .map(([id, n]) => `<div class="iitem"><b>${ITEM_LABELS[id]}</b> ×${n}</div>`).join("");
-  return `<div class="modal hit"><div class="panel mcard"><div class="mh"><h2>Inventar</h2>
-    <button class="xbtn" data-act="inv">✕</button></div><div class="igrid">${items}</div></div></div>`;
-}
-
 function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
-  el.querySelector('[data-act="new"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.newGame(); });
+  el.querySelector('[data-act="new"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.requestNewGame(); });
   el.querySelector('[data-act="continue"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.continueGame(); });
+  el.querySelector('[data-act="confirm-new"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.confirmNewGame(); });
+  el.querySelector('[data-act="cancel-new"]')?.addEventListener("click", () => { unlockAudio(); sfx("ui"); model.cancelNewGame(); });
   el.querySelector('[data-act="dlg"]')?.addEventListener("click", () => model.advanceDialogue());
   el.querySelector('[data-act="inv"]')?.addEventListener("click", () => model.toggleInventory());
+  el.querySelector('[data-act="map"]')?.addEventListener("click", () => model.toggleMap());
+  el.querySelector('[data-act="toggle-quest"]')?.addEventListener("click", () => model.toggleQuestPanel());
   el.querySelector('[data-act="close-shop"]')?.addEventListener("click", () => model.closeShop());
   el.querySelector('[data-act="e"]')?.addEventListener("click", () => { model.interactQueued = true; });
   el.querySelectorAll<HTMLElement>("[data-seed]").forEach((b) => {
@@ -109,6 +201,32 @@ function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
   el.querySelectorAll<HTMLElement>("[data-sell]").forEach((b) => {
     b.addEventListener("click", () => model.sellCrop(b.dataset.sell as CropId));
   });
+  el.querySelectorAll<HTMLElement>("[data-sell-item]").forEach((b) => {
+    b.addEventListener("click", () => model.sellItem(b.dataset.sellItem as ItemId));
+  });
+  el.querySelectorAll<HTMLInputElement>("[data-vol]").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const music = Number((el.querySelector('[data-vol="music"]') as HTMLInputElement)?.value ?? 35) / 100;
+      const sfxV = Number((el.querySelector('[data-vol="sfx"]') as HTMLInputElement)?.value ?? 70) / 100;
+      model.setVolumes(music, sfxV);
+    });
+  });
+
+  const dlgText = el.querySelector("#dlg-text");
+  if (dlgText && h.dialogue) {
+    const full = h.dialogue.text;
+    dlgText.textContent = "";
+    let i = 0;
+    const tick = () => {
+      if (i <= full.length) {
+        dlgText.textContent = full.slice(0, i);
+        i++;
+        window.setTimeout(tick, 16);
+      }
+    };
+    tick();
+  }
+
   const stick = el.querySelector<HTMLElement>("#stick");
   const knob = el.querySelector<HTMLElement>("#knob");
   if (stick && knob) {
@@ -130,11 +248,10 @@ function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
     };
     stick.addEventListener("pointerdown", (e) => {
       origin = { x: e.clientX, y: e.clientY };
-      stick.setPointerCapture(e.pointerId);
+ cons.setPointerCapture(e.pointerId);
     });
     stick.addEventListener("pointermove", (e) => move(e.clientX, e.clientY));
     stick.addEventListener("pointerup", end);
     stick.addEventListener("pointercancel", end);
   }
-  void h;
 }
