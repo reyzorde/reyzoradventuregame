@@ -15,7 +15,7 @@ export function mountHud(el: HTMLElement, model: GameModel): () => void {
 }
 
 function menuHtml(h: HudSnapshot): string {
-  return `<div class="menu-overlay hit">
+  return `<div class="menu-overlay hit" style="background-image:url('/art/cover.jpg')">
     <div class="panel menu-card">
       <p class="eyebrow">Level 1–2</p>
       <h1>Reyzor Adventure</h1>
