@@ -36,7 +36,15 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xffffff, 1);
     g.fillCircle(10 * TILE + 22, 36, 3);
     g.generateTexture("tileset", TILE * 11, TILE);
+    // Legacy key used by older GardenSceneBase builds
+    if (!scene.textures.exists("tiles")) {
+      g.generateTexture("tiles", TILE * 11, TILE);
+    }
     g.destroy();
+  }
+  if (!scene.textures.exists("tiles") && scene.textures.exists("tileset")) {
+    const img = scene.textures.get("tileset").getSourceImage() as CanvasImageSource;
+    scene.textures.addImage("tiles", img);
   }
   mk("player", 32, 48, (g) => {
     g.fillStyle(0x3d7a4a, 1); g.fillRoundedRect(6, 18, 20, 22, 4);
