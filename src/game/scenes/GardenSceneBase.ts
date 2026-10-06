@@ -61,20 +61,37 @@ export class GardenSceneBase extends Phaser.Scene {
     this.cameras.main.roundPixels = true;
     this.scale.on("resize", this.onResize, this);
     this.overlay = this.add.rectangle(0, 0, WORLD_W, WORLD_H, 0x1a2e4a, 0).setOrigin(0).setDepth(800);
+    this.input.on("pointerdown", () => unlockAudio());
     this.events.once("shutdown", () => this.cleanup());
   }
 
   protected buildMap(): void {
-    const data = createGrid();
-    const map = this.make.tilemap({ data: data.reduce((rows: number[][], t, i) => {
-      const r = Math.floor(i / MAP_COLS);
-      if (!rows[r]) rows[r] = [];
-      rows[r].push(t);
-      return rows;
-    }, []), tileWidth: TILE, tileHeight: TILE });
-    const tiles = map.addTilesetImage("tiles", "tiles")!;
-    this.layer = map.createLayer(0, tiles, 0, 0)!;
-    this.layer.setCollisionByExclusion([...WALKABLE]);
+    if (!this.textures.exists("tileset") && !this.textures.exists("tiles")) {
+      generateProceduralTextures(this);
+    }
+    const flat = createGrid();
+    const data: number[][] = [];
+    for (let y = 0; y < MAP_ROWS; y++) data.push(flat.slice(y * MAP_COLS, (y + 1) * MAP_COLS));
+    const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
+    const texKey = this.textures.exists("tileset")
+      ? "tileset"
+      : this.textures.exists("tiles")
+        ? "tiles"
+        : null;
+    if (!texKey) {
+      console.error("[GardenScene] No tileset texture");
+      this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
+      return;
+    }
+    const ts = map.addTilesetImage(texKey, texKey, TILE, TILE, 0, 0);
+    if (!ts) {
+      console.error("[GardenScene] addTilesetImage failed", texKey);
+      this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
+      return;
+    }
+    this.layer = map.createLayer(0, ts, 0, 0)!;
+    this.layer.setCollisionByExclusion(Array.from(WALKABLE));
+    this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
   }
 
   protected spawnWorld(): void {
@@ -114,13 +131,16 @@ export class GardenSceneBase extends Phaser.Scene {
     }
     const key = o.kind === "pine" ? "pine" : o.kind;
     const s = this.add.image(x, footY, key).setOrigin(0.5, 1).setDepth(footY);
+    if (o.kind === "shop") s.setScale(1.35);
+    if (o.kind === "house" || o.kind === "barn") s.setScale(1.1);
     if (o.collide) {
       const b = o.body ?? { ox: 20, oy: 50, w: 40, h: 20 };
+      const sc = s.scaleX;
       const z = this.add.zone(
-        x - s.displayWidth / 2 + b.ox + b.w / 2,
-        footY - s.displayHeight + b.oy + b.h / 2,
-        b.w,
-        b.h,
+        x - (s.width * sc) / 2 + b.ox * sc + (b.w * sc) / 2,
+        footY - s.height * sc + b.oy * sc + (b.h * sc) / 2,
+        b.w * sc,
+        b.h * sc,
       );
       this.physics.add.existing(z, true);
       this.blockers.add(z);
@@ -133,7 +153,7 @@ export class GardenSceneBase extends Phaser.Scene {
     this.player = this.physics.add.sprite(x, y, "player");
     this.player.setSize(14, 12).setOffset(8, 50);
     this.player.setCollideWorldBounds(true).setDepth(y);
-    this.physics.add.collider(this.player, this.layer);
+    if (this.layer) this.physics.add.collider(this.player, this.layer);
     this.physics.add.collider(this.player, this.blockers);
   }
 
@@ -141,7 +161,8 @@ export class GardenSceneBase extends Phaser.Scene {
     for (const n of NPCS) {
       const { x, y } = tw(n.tx, n.ty);
       const s = this.physics.add.sprite(x, y, n.id);
-      s.setImmovable(true).setSize(16, 12).setOffset(4, 52).setDepth(y);
+      s.setScale(1.65);
+      s.setImmovable(true).setSize(18, 14).setOffset(4, 52).setDepth(y);
       this.physics.add.collider(this.player, s);
       this.npcs[n.id] = s;
     }
@@ -165,7 +186,7 @@ export class GardenSceneBase extends Phaser.Scene {
         s.setDepth(a.y);
         s.setSize(16, 10).setOffset(8, 18);
         this.physics.add.collider(s, this.blockers);
-        this.physics.add.collider(s, this.layer);
+        if (this.layer) this.physics.add.collider(s, this.layer);
       }
       this.animals.push(s);
     }
@@ -215,7 +236,8 @@ export class GardenSceneBase extends Phaser.Scene {
     for (const p of this.model.save.plots) {
       const { x, y } = tw(p.col, p.row);
       const c = this.add.container(x, y + TILE * 0.28).setDepth(y + 2).setVisible(false);
-      const img = this.add.image(0, 0, "crop0").setOrigin(0.5, 1).setScale(1.35);
+      const cropKey = this.textures.exists("crop0") ? "crop0" : "weed";
+      const img = this.add.image(0, 0, cropKey).setOrigin(0.5, 1).setScale(1.35);
       c.add(img);
       this.crops.set(p.id, c);
     }
@@ -237,7 +259,6 @@ export class GardenSceneBase extends Phaser.Scene {
     this.input.keyboard.on("keydown-ONE", () => this.model.selectSeed("carrot"));
     this.input.keyboard.on("keydown-TWO", () => this.model.selectSeed("tomato"));
     this.input.keyboard.on("keydown-THREE", () => this.model.selectSeed("strawberry"));
-    this.input.on("pointerdown", () => unlockAudio());
   }
 
   protected setupProbe(): void {
