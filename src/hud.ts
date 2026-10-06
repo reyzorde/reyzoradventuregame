@@ -248,7 +248,7 @@ function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
     };
     stick.addEventListener("pointerdown", (e) => {
       origin = { x: e.clientX, y: e.clientY };
- cons.setPointerCapture(e.pointerId);
+      stick.setPointerCapture(e.pointerId);
     });
     stick.addEventListener("pointermove", (e) => move(e.clientX, e.clientY));
     stick.addEventListener("pointerup", end);
