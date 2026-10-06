@@ -1,235 +1,10 @@
-
-import { CROP_CONFIGS, CROP_LIST, GAME_MINUTE_MS, ITEM_LABELS, QUEST_DEFS, TUTORIAL } from "../config";
+import { ANIMAL_COOLDOWN, CROP_CONFIGS, CROP_LIST, FISH_COOLDOWN, ITEM_LABELS, QUEST_DEFS, SELL_PRICE, TUTORIAL } from "../config";
 import { D } from "../data/dialogues";
-import type { CropId, DialogueLine, GameSave, HudSnapshot, ItemId, PlotState, QuestId } from "../types";
-import { sfx } from "./AudioSystem";
-import { bus } from "./events";
-import { clearSave, createNewSave, hasSave, loadSave, writeSave } from "./SaveSystem";
+import type { CropId, HudSnapshot, ItemId, PlotState } from "../types";
+import { setMusicVolume, setSfxVolume, sfx } from "./AudioSystem";
+import { GameModelBase } from "./GameModelBase";
 
-let nid = 0;
-
-export class GameModel {
-  save: GameSave;
-  selectedSeed: CropId | null = "carrot";
-  notices: { id: string; text: string }[] = [];
-  dialogue: DialogueLine[] = [];
-  dialogueIndex = 0;
-  shopOpen = false;
-  inventoryOpen = false;
-  menu: "main" | "none" = "main";
-  playing = false;
-  interactHint: string | null = null;
-  injectedKeys = new Set<string>();
-  joystick = { x: 0, y: 0 };
-  lastSaveAt = 0;
-  afterDialogue: (() => void) | null = null;
-  interactQueued = false;
-  listeners = new Set<() => void>();
-
-  constructor() {
-    this.save = loadSave() ?? createNewSave();
-  }
-
-  sub(fn: () => void): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  }
-
-  emit(): void {
-    for (const fn of this.listeners) fn();
-    bus.emit("hud");
-  }
-
-  hasSave(): boolean { return hasSave(); }
-
-  newGame(): void {
-    clearSave();
-    this.save = createNewSave();
-    this.selectedSeed = "carrot";
-    this.notices = [];
-    this.dialogue = [];
-    this.shopOpen = false;
-    this.inventoryOpen = false;
-    this.menu = "none";
-    this.playing = true;
-    this.push("Boboning bog'iga xush kelibsiz.");
-    this.persist();
-    bus.emit("playing", true);
-    bus.emit("menu", "none");
-    this.emit();
-  }
-
-  continueGame(): void {
-    this.save = loadSave() ?? createNewSave();
-    this.menu = "none";
-    this.playing = true;
-    this.shopOpen = false;
-    this.inventoryOpen = false;
-    this.dialogue = [];
-    bus.emit("playing", true);
-    bus.emit("menu", "none");
-    this.emit();
-  }
-
-  pauseToMenu(): void {
-    this.persist();
-    this.playing = false;
-    this.menu = "main";
-    bus.emit("playing", false);
-    bus.emit("menu", "main");
-    this.emit();
-  }
-
-  persist(): void {
-    writeSave(this.save);
-    this.lastSaveAt = performance.now();
-  }
-
-  tick(dt: number): void {
-    if (!this.playing) return;
-    this.save.time.minutes += dt / GAME_MINUTE_MS;
-    while (this.save.time.minutes >= 24 * 60) {
-      this.save.time.minutes -= 24 * 60;
-      this.save.time.day += 1;
-    }
-    this.updateCrops();
-    if (performance.now() - this.lastSaveAt > 4000) this.persist();
-  }
-
-  updateCrops(): void {
-    const now = Date.now();
-    for (const p of this.save.plots) {
-      if (!p.unlocked || !p.cropId || p.wateredAt == null || p.state === "READY") continue;
-      const cfg = CROP_CONFIGS[p.cropId];
-      const e = now - p.wateredAt;
-      if (e >= cfg.growthMs) p.state = "READY";
-      else if (e >= cfg.growthMs * 0.35) p.state = "GROWING";
-      else p.state = "WATERED";
-    }
-  }
-
-  growthPhase(p: PlotState): number {
-    if (!p.cropId || p.plantedAt == null) return -1;
-    if (p.state === "PLANTED" || p.state === "WATERED") return 0;
-    if (p.state === "READY") return 3;
-    if (p.state === "GROWING" && p.wateredAt != null) {
-      const t = (Date.now() - p.wateredAt) / CROP_CONFIGS[p.cropId].growthMs;
-      return t > 0.7 ? 2 : 1;
-    }
-    return 0;
-  }
-
-  addItem(id: ItemId, n: number): void {
-    this.save.inventory[id] = Math.max(0, (this.save.inventory[id] ?? 0) + n);
-  }
-
-  addCoins(n: number): void {
-    this.save.coins = Math.max(0, this.save.coins + n);
-    if (n > 0) { this.push(`+${n} tanga`); sfx("coin"); }
-  }
-
-  push(text: string): void {
-    const id = `n${++nid}`;
-    this.notices = [...this.notices.slice(-4), { id, text }];
-    bus.emit("notice", { text });
-    window.setTimeout(() => {
-      this.notices = this.notices.filter((n) => n.id !== id);
-      this.emit();
-    }, 2600);
-    this.emit();
-  }
-
-  openDialogue(lines: DialogueLine[], after?: () => void): void {
-    this.dialogue = lines;
-    this.dialogueIndex = 0;
-    this.afterDialogue = after ?? null;
-    this.shopOpen = false;
-    sfx("talk");
-    this.emit();
-  }
-
-  currentDialogue(): DialogueLine | null {
-    return this.dialogue[this.dialogueIndex] ?? null;
-  }
-
-  advanceDialogue(): void {
-    if (!this.dialogue.length) return;
-    this.dialogueIndex += 1;
-    if (this.dialogueIndex >= this.dialogue.length) {
-      this.dialogue = [];
-      const a = this.afterDialogue;
-      this.afterDialogue = null;
-      a?.();
-    }
-    this.emit();
-  }
-
-  advanceQuest(id: QuestId, amount = 1): void {
-    if (this.save.quests.active !== id || this.save.quests.completed.includes(id)) return;
-    const def = QUEST_DEFS[id];
-    this.save.quests.progress[id] = Math.min(def.target, (this.save.quests.progress[id] ?? 0) + amount);
-    if ((this.save.quests.progress[id] ?? 0) >= def.target) this.completeQuest(id);
-    this.emit();
-  }
-
-  completeQuest(id: QuestId): void {
-    if (this.save.quests.completed.includes(id)) return;
-    this.save.quests.completed.push(id);
-    const def = QUEST_DEFS[id];
-    if (id === "clear_garden" || id === "need_water") this.addCoins(20);
-    if (id === "first_seeds") { this.addItem("carrot_seed", 10); this.push("10 sabzi urug'i olindi"); }
-    if (id === "first_harvest") this.addCoins(50);
-    if (id === "help_village") this.applyUpgrade();
-    if (id === "enter_forest") {
-      this.save.upgrades.forestOpen = true;
-      this.push("O'rmon yo'li ochildi!");
-    }
-    if (id === "gather_mushrooms") {
-      this.addCoins(40);
-      this.addItem("wood", 2);
-      this.push("2 ta yog'och olindi");
-    }
-    sfx("quest");
-    this.push(`Topshiriq bajarildi: ${def.title}`);
-    this.save.quests.active = def.next;
-    this.persist();
-  }
-
-  applyUpgrade(): void {
-    this.save.upgrades.smallGarden = true;
-    for (const p of this.save.plots) p.unlocked = true;
-    this.push("Kichik bog' yangilandi — 3 ta yangi yer ochildi!");
-  }
-
-  openForestGate(): void {
-    if (this.save.upgrades.forestOpen) {
-      this.openDialogue(D.gate_open);
-      return;
-    }
-    if (this.save.upgrades.smallGarden) {
-      this.save.upgrades.forestOpen = true;
-      this.advanceQuest("enter_forest");
-      this.openDialogue(D.gate_open, () => {
-        this.push("Darvoza ochildi — sharqqa boring");
-      });
-      this.persist();
-      return;
-    }
-    this.openDialogue(D.gate_locked);
-  }
-
-  takeMushroom(id: string): boolean {
-    if (this.save.pickupsTaken.includes(id)) return false;
-    this.save.pickupsTaken.push(id);
-    this.addItem("mushroom", 1);
-    sfx("harvest");
-    this.push("Qo'ziqorin olindi");
-    this.advanceQuest("gather_mushrooms");
-    this.persist();
-    this.emit();
-    return true;
-  }
-
+export class GameModel extends GameModelBase {
   till(p: PlotState): boolean {
     if (!p.unlocked || p.state !== "EMPTY") return false;
     p.state = "TILLED";
@@ -353,7 +128,7 @@ export class GameModel {
 
   openShop(): void { this.shopOpen = true; sfx("ui"); this.emit(); }
   closeShop(): void { this.shopOpen = false; this.emit(); }
-  toggleInventory(): void { this.inventoryOpen = !this.inventoryOpen; sfx("ui"); this.emit(); }
+  toggleInventory(): void { this.inventoryOpen = !this.inventoryOpen; if (this.inventoryOpen) this.mapOpen = false; sfx("open"); this.emit(); }
 
   buySeed(crop: CropId): void {
     const cfg = CROP_CONFIGS[crop];
@@ -399,6 +174,85 @@ export class GameModel {
     return null;
   }
 
+  toggleMap(): void {
+    this.mapOpen = !this.mapOpen;
+    if (this.mapOpen) { this.inventoryOpen = false; this.shopOpen = false; }
+    sfx("open");
+    this.emit();
+  }
+
+  toggleQuestPanel(): void {
+    this.questCollapsed = !this.questCollapsed;
+    sfx("ui");
+    this.emit();
+  }
+
+  setVolumes(music: number, sfxV: number): void {
+    this.save.audio.music = music;
+    this.save.audio.sfx = sfxV;
+    setMusicVolume(music);
+    setSfxVolume(sfxV);
+    this.persist();
+    this.emit();
+  }
+
+  collectFromAnimal(id: string): boolean {
+    const a = this.save.animals.find((x) => x.id === id);
+    if (!a || a.kind === "fish") return false;
+    const now = Date.now();
+    const cd = ANIMAL_COOLDOWN;
+    if (now - a.lastCollect < cd) {
+      const left = Math.ceil((cd - (now - a.lastCollect)) / 1000);
+      this.push(`Hali erta (${left}s)`);
+      return false;
+    }
+    a.lastCollect = now;
+    if (a.kind === "cow") {
+      this.addItem("milk", 1);
+      sfx("milk");
+      this.push("Sut olindi");
+    } else {
+      this.addItem("egg", 1);
+      sfx("egg");
+      this.push("Tuxum olindi");
+    }
+    this.persist();
+    this.emit();
+    return true;
+  }
+
+  tryFish(id: string): boolean {
+    const a = this.save.animals.find((x) => x.id === id && x.kind === "fish");
+    if (!a) return false;
+    const now = Date.now();
+    if (now - a.lastCollect < FISH_COOLDOWN) {
+      this.push("Baliqlar hali yaqinlashmagan...");
+      return false;
+    }
+    a.lastCollect = now;
+    this.addItem("fish", 1);
+    sfx("fish");
+    this.push("Baliq tutildi!");
+    this.persist();
+    this.emit();
+    return true;
+  }
+
+  sellItem(id: ItemId): void {
+    const price = SELL_PRICE[id] ?? 0;
+    if (price <= 0) { this.push("Bu narsani sotib bo'lmaydi"); return; }
+    if ((this.save.inventory[id] ?? 0) < 1) { this.push("Sotadigan narsa yo'q"); return; }
+    this.addItem(id, -1);
+    this.addCoins(price);
+    this.persist();
+    this.emit();
+  }
+
+  boundaryNudge(): void {
+    this.push("Bu hududdan tashqariga chiqib bo'lmaydi");
+    sfx("boundary");
+  }
+
   snapshot(): HudSnapshot {
     const qid = this.save.quests.active;
     const def = qid ? QUEST_DEFS[qid] : null;
@@ -414,6 +268,9 @@ export class GameModel {
       tutorial: this.tutorial(), notices: this.notices,
       dialogue: this.currentDialogue(), shopOpen: this.shopOpen, inventoryOpen: this.inventoryOpen,
       menu: this.menu, hasSave: this.hasSave(), playing: this.playing,
+      mapOpen: this.mapOpen, questCollapsed: this.questCollapsed,
+      playerX: this.save.player.x, playerY: this.save.player.y,
+      musicVol: this.save.audio?.music ?? 0.35, sfxVol: this.save.audio?.sfx ?? 0.7,
     };
   }
 }
