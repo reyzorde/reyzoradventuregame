@@ -20,15 +20,15 @@ export const DAY_START = 8 * 60;
 export const CROP_CONFIGS: Record<CropId, CropConfig> = {
   carrot: {
     id: "carrot", nameUz: "Sabzi", seedItem: "carrot_seed", harvestItem: "carrot",
-    seedCost: 10, harvestPrice: 18, growthMs: 14000, color: 0x6aa34a, readyColor: 0xe07a2f,
+    seedCost: 10, harvestPrice: 18, growthMs: 22000, color: 0x6aa34a, readyColor: 0xe07a2f,
   },
   tomato: {
     id: "tomato", nameUz: "Pomidor", seedItem: "tomato_seed", harvestItem: "tomato",
-    seedCost: 15, harvestPrice: 26, growthMs: 18000, color: 0x4f9b3a, readyColor: 0xd9443b,
+    seedCost: 15, harvestPrice: 26, growthMs: 30000, color: 0x4f9b3a, readyColor: 0xd9443b,
   },
   strawberry: {
     id: "strawberry", nameUz: "Qulupnay", seedItem: "strawberry_seed", harvestItem: "strawberry",
-    seedCost: 20, harvestPrice: 34, growthMs: 22000, color: 0x5fad4a, readyColor: 0xe84a6a,
+    seedCost: 20, harvestPrice: 34, growthMs: 40000, color: 0x5fad4a, readyColor: 0xe84a6a,
   },
 };
 
