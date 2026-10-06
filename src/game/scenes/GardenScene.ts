@@ -1,7 +1,7 @@
-import { INTERACT_R, PLAYER_SPEED } from "../config";
+import { INTERACT_R } from "../config";
 import { OBJECTS, T, tw } from "../data/map";
-import type { Facing, PlotState } from "../types";
-import { sfx } from "../systems/AudioSystem";
+import type { PlotState } from "../types";
+import { sfx, unlockAudio } from "../systems/AudioSystem";
 import { GardenSceneBase, type Target } from "./GardenSceneBase";
 
 export class GardenScene extends GardenSceneBase {
@@ -39,7 +39,8 @@ export class GardenScene extends GardenSceneBase {
     x += this.model.joystick.x; y += this.model.joystick.y;
     const len = Math.hypot(x, y);
     if (len > 0.15) { x /= len; y /= len; } else { x = 0; y = 0; }
-    this.player.setVelocity(x * PLAYER_SPEED, y * PLAYER_SPEED);
+    const spd = typeof this.model.moveSpeed === "function" ? this.model.moveSpeed() : 170;
+    this.player.setVelocity(x * spd, y * spd);
     this.speed = Math.hypot(this.player.body?.velocity.x ?? 0, this.player.body?.velocity.y ?? 0);
     if (len > 0.15) {
       this.model.noteMoved();
@@ -127,25 +128,27 @@ export class GardenScene extends GardenSceneBase {
       if (!o) continue;
       const p = tw(o.tx, o.ty);
       const hint = id === "shop" ? "E — Do'konga kirish" : id === "barn" ? "E — Molxona" : "E — Uy";
-      consider({ kind: id, id, x: p.x, y: p.y, hint, run: () => this.model.talkTo(id) });
+      consider({ kind: id, id, x: p.x, y: p.y, hint, run: () => {
+        if (id === "shop") this.model.talkTom();
+        else if (id === "barn" || id === "house") this.model.openDialogue?.([{ speaker: id === "barn" ? "Molxona" : "Uy", text: id === "barn" ? "Eski molxona." : "Boboning uyi." }] as never);
+      }});
     }
     const gate = OBJECTS.find((x) => x.id === "gate");
     if (gate) {
       const p = tw(gate.tx, gate.ty);
-      consider({ kind: "gate", id: "gate", x: p.x, y: p.y, hint: this.model.save.upgrades.forestOpen ? "E — O'rmonga kirish" : "E — Darvoza (yopiq)", run: () => this.model.useGate() });
+      consider({ kind: "gate", id: "gate", x: p.x, y: p.y, hint: this.model.save.upgrades.forestOpen ? "E — O'rmonga kirish" : "E — Darvoza (yopiq)", run: () => this.model.openForestGate() });
     }
     for (const [id, s] of Object.entries(this.npcs)) {
-      consider({ kind: "npc", id, x: s.x, y: s.y, hint: id === "mira" ? "E — Mira bilan gaplashish" : "E — Tom bilan gaplashish", run: () => this.model.talkTo(id) });
-    }
-    const fsign = OBJECTS.find((x) => x.id === "forest-sign");
-    if (fsign && this.model.save.upgrades.forestOpen) {
-      const p = tw(fsign.tx, fsign.ty);
-      consider({ kind: "sign", id: "forest-sign", x: p.x, y: p.y, hint: "E — Belgini o'qish", run: () => this.model.talkTo("forest-sign") });
+      consider({ kind: "npc", id, x: s.x, y: s.y, hint: id === "mira" ? "E — Mira bilan gaplashish" : "E — Tom bilan gaplashish", run: () => {
+        if (id === "mira") this.model.talkMira();
+        else this.model.talkTom();
+      }});
     }
     return best;
   }
 
   protected tryInteract(): void {
+    unlockAudio();
     if (!this.model.playing) return;
     if (this.model.dialogue.length) { this.model.advanceDialogue(); return; }
     this.nearest()?.run();
@@ -153,11 +156,11 @@ export class GardenScene extends GardenSceneBase {
 
   protected onPlot(p: PlotState): void {
     const before = p.state;
-    this.model.usePlot(p);
+    this.model.interactPlot(p);
     const { x, y } = tw(p.col, p.row);
-    if (p.state === "TILLED") this.popup(x, y - 16, "~");
+    if (p.state === "TILLED" && before === "EMPTY") this.burst(x, y, 0x8b6914);
     if (p.state === "PLANTED") this.popup(x, y - 16, "✦");
-    if (before !== "WATERED" && p.state === "WATERED") { this.splash(x, y); this.popup(x, y - 16, "💧"); }
+    if (p.state === "WATERED") this.splash(x, y);
     if (before === "READY" && p.state === "EMPTY") { this.popup(x, y - 20, "+1"); this.burst(x, y, 0xe8a838); }
     this.paint(p);
   }
@@ -180,27 +183,55 @@ export class GardenScene extends GardenSceneBase {
   }
 
   protected paint(p: PlotState): void {
-    if (!p.unlocked) { this.layer.putTileAt(T.Dirt, p.col, p.row); this.crops.get(p.id)?.setVisible(false); return; }
-    if (p.state === "EMPTY") this.layer.putTileAt(T.Dirt, p.col, p.row);
-    else if (p.state === "TILLED" || p.state === "PLANTED") this.layer.putTileAt(T.Soil, p.col, p.row);
-    else this.layer.putTileAt(T.SoilWet, p.col, p.row);
+    if (this.layer) {
+      try {
+        if (!p.unlocked) this.layer.putTileAt(T.Dirt, p.col, p.row);
+        else if (p.state === "EMPTY") this.layer.putTileAt(T.Dirt, p.col, p.row);
+        else if (p.state === "TILLED" || p.state === "PLANTED") this.layer.putTileAt(T.Soil, p.col, p.row);
+        else this.layer.putTileAt(T.SoilWet, p.col, p.row);
+      } catch { /* tileset not ready */ }
+    }
+    if (!p.unlocked) {
+      this.crops.get(p.id)?.setVisible(false);
+      return;
+    }
     const c = this.crops.get(p.id);
-    if (!c) return;
+    if (!c || !c.list?.length) return;
     const phase = this.model.growthPhase(p);
-    if (phase < 0 || !p.cropId) { c.setVisible(false); return; }
-    const img = c.list[0] as Phaser.GameObjects.Image;
+    if (phase < 0 || !p.cropId) {
+      c.setVisible(false);
+      return;
+    }
+    const img = c.list[0] as Phaser.GameObjects.Image | undefined;
+    if (!img || typeof img.setTexture !== "function") return;
     const specific = `crop_${p.cropId}_${phase}`;
-    const key = this.textures.exists(specific) ? specific : `crop${phase}`;
-    if (img.texture.key !== key) img.setTexture(key);
-    img.setOrigin(0.5, 1);
-    img.setScale(1.35);
-    img.clearTint();
-    if (p.state === "READY") img.setY(Math.sin(this.time.now / 280) * 2);
-    else img.setY(0);
-    c.setVisible(true);
+    const fallback = `crop${phase}`;
+    const key = this.textures.exists(specific)
+      ? specific
+      : this.textures.exists(fallback)
+        ? fallback
+        : this.textures.exists("crop0")
+          ? "crop0"
+          : null;
+    if (!key) {
+      c.setVisible(false);
+      return;
+    }
+    try {
+      if (img.texture?.key !== key) img.setTexture(key);
+      img.setOrigin(0.5, 1);
+      img.setScale(1.35);
+      img.clearTint();
+      if (p.state === "READY") img.setY(Math.sin(this.time.now / 280) * 2);
+      else img.setY(0);
+      c.setVisible(true);
+    } catch {
+      c.setVisible(false);
+    }
   }
 
   protected updateTint(): void {
+    if (!this.overlay) return;
     const m = this.model.save.time.minutes % (24 * 60);
     let color = 0x1a2e4a, a = 0;
     if (m < 6 * 60) a = 0.28;
@@ -212,12 +243,14 @@ export class GardenScene extends GardenSceneBase {
   }
 
   protected burst(x: number, y: number, tint: number): void {
+    if (!this.textures.exists("spark")) return;
     const p = this.add.particles(x, y, "spark", { speed: { min: 20, max: 70 }, lifespan: 420, scale: { start: 0.8, end: 0 }, quantity: 8, tint, emitting: false });
     p.explode(8);
     this.time.delayedCall(500, () => p.destroy());
   }
 
   protected splash(x: number, y: number): void {
+    if (!this.textures.exists("droplet")) return;
     const p = this.add.particles(x, y, "droplet", { speed: { min: 30, max: 80 }, lifespan: 500, scale: { start: 0.9, end: 0.1 }, gravityY: 120, quantity: 10, emitting: false });
     p.explode(10);
     this.time.delayedCall(600, () => p.destroy());
