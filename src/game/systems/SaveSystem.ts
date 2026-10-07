@@ -40,7 +40,16 @@ function mergePlots(defaults: PlotState[], loaded?: PlotState[]): PlotState[] {
   const byId = new Map(loaded.map((p) => [p.id, p]));
   return defaults.map((d) => {
     const f = byId.get(d.id);
-    return f ? { ...d, ...f, unlocked: f.unlocked || d.unlocked } : { ...d };
+    if (!f) return { ...d };
+    // Keep layout positions (col/row) from current map; preserve crop progress
+    return {
+      ...d,
+      state: f.state ?? d.state,
+      cropId: f.cropId ?? d.cropId,
+      plantedAt: f.plantedAt ?? d.plantedAt,
+      wateredAt: f.wateredAt ?? d.wateredAt,
+      unlocked: Boolean(f.unlocked || d.unlocked),
+    };
   });
 }
 
@@ -53,8 +62,10 @@ function migrateUpgradeLevels(raw: Partial<GameSave>): Record<UpgradeId, number>
       move_speed: Math.max(0, Number(from.move_speed) || 0),
     };
   }
+  // v1 saves: derive water level from waterMax if possible
   const wm = Number(raw.waterMax) || WATER_MAX;
   if (wm > WATER_MAX) {
+    // approximate level from capacity
     const vals = [5, 6, 7, 8, 10, 12];
     let lv = 0;
     for (let i = 0; i < vals.length; i++) if (vals[i] <= wm) lv = i;
@@ -100,7 +111,10 @@ export function loadSave(): GameSave | null {
       plots: mergePlots(base.plots, p.plots),
       weedsCleared: p.weedsCleared ?? [],
       pickupsTaken: p.pickupsTaken ?? [],
-      animals: p.animals?.length ? p.animals : base.animals.map((a) => ({ ...a })),
+      // Drop legacy chicken entries from older saves
+      animals: (p.animals?.length ? p.animals : base.animals)
+        .filter((a) => a && (a as { kind: string }).kind !== "chicken" && (a.kind === "cow" || a.kind === "fish"))
+        .map((a) => ({ ...a, kind: a.kind as "cow" | "fish" })),
       audio: { music: 0.35, sfx: 0.7, ...p.audio },
     };
   } catch {
@@ -111,6 +125,7 @@ export function loadSave(): GameSave | null {
 export function writeSave(save: GameSave): void {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    // clean old key after successful v2 write
     localStorage.removeItem("reyzor-adventure-save-v1");
   } catch {
     /* private mode */

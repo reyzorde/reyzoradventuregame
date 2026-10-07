@@ -90,7 +90,7 @@ export interface DialogueLine {
   portrait?: string;
 }
 
-export type AnimalKind = "cow" | "chicken" | "fish";
+export type AnimalKind = "cow" | "fish";
 export interface AnimalSave {
   id: string;
   kind: AnimalKind;

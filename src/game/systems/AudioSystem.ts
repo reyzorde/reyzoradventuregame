@@ -21,6 +21,8 @@ export function unlockAudio(): void {
   if (!a) return;
   if (a.state === "suspended") void a.resume();
   unlocked = true;
+  // Soft ambient starts after first user gesture (Chrome autoplay policy)
+  startMusic();
 }
 
 export function setSfxVolume(v: number): void {
@@ -57,16 +59,20 @@ function tone(freq: number, dur: number, type: OscillatorType, gain = 0.05, slid
   o.stop(a.currentTime + dur + 0.02);
 }
 
+/** Soft pastoral ambient — low volume, slow pentatonic drift (no external files) */
 export function startMusic(): void {
   const a = ac();
   if (!a || !unlocked || musicNodes) return;
-  const notes = [196, 247, 294, 330];
-  musicNodes = notes.map((f, i) => {
+  // G major pentatonic-ish: calm, not busy
+  const pad = [196.0, 220.0, 246.94, 293.66]; // G3 A3 B3 D4
+  const melody = [196, 220, 246.94, 293.66, 329.63, 293.66, 246.94, 220];
+  musicNodes = pad.map((f, i) => {
     const o = a.createOscillator();
     const g = a.createGain();
-    o.type = "sine";
+    o.type = i % 2 === 0 ? "sine" : "triangle";
     o.frequency.value = f;
-    g.gain.value = 0.01 * musicVol * (i === 0 ? 1.2 : 0.7);
+    // Very soft bed — should not tire the player
+    g.gain.value = 0.006 * musicVol * (i === 0 ? 1.1 : 0.55);
     o.connect(g);
     g.connect(a.destination);
     o.start();
@@ -75,10 +81,15 @@ export function startMusic(): void {
   let i = 0;
   musicTimer = window.setInterval(() => {
     if (!musicNodes || !a) return;
-    const f = notes[i % notes.length];
-    musicNodes[0].o.frequency.setTargetAtTime(f, a.currentTime, 0.4);
+    const f = melody[i % melody.length];
+    // Gentle glide on the lead voice only
+    musicNodes[0].o.frequency.setTargetAtTime(f, a.currentTime, 0.8);
+    // Soft swell
+    const t = a.currentTime;
+    musicNodes[0].g.gain.setTargetAtTime(0.008 * musicVol, t, 0.3);
+    musicNodes[0].g.gain.setTargetAtTime(0.005 * musicVol, t + 1.2, 0.5);
     i++;
-  }, 2400);
+  }, 3200);
 }
 
 export function stopMusic(): void {
