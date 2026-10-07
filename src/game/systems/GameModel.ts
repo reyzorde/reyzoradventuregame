@@ -198,7 +198,7 @@ export class GameModel extends GameModelBase {
 
   collectFromAnimal(id: string): boolean {
     const a = this.save.animals.find((x) => x.id === id);
-    if (!a || a.kind === "fish") return false;
+    if (!a || a.kind !== "cow") return false;
     const now = Date.now();
     const cd = ANIMAL_COOLDOWN;
     if (now - a.lastCollect < cd) {
@@ -207,15 +207,9 @@ export class GameModel extends GameModelBase {
       return false;
     }
     a.lastCollect = now;
-    if (a.kind === "cow") {
-      this.addItem("milk", 1);
-      sfx("milk");
-      this.push("Sut olindi");
-    } else {
-      this.addItem("egg", 1);
-      sfx("egg");
-      this.push("Tuxum olindi");
-    }
+    this.addItem("milk", 1);
+    sfx("milk");
+    this.push("Sut olindi");
     this.persist();
     this.emit();
     return true;
@@ -271,6 +265,7 @@ export class GameModel extends GameModelBase {
       mapOpen: this.mapOpen, questCollapsed: this.questCollapsed,
       playerX: this.save.player.x, playerY: this.save.player.y,
       musicVol: this.save.audio?.music ?? 0.35, sfxVol: this.save.audio?.sfx ?? 0.7,
+      upgrades: this.getUpgradeViews?.() ?? [],
     };
   }
 }
