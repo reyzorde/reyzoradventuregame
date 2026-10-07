@@ -127,10 +127,14 @@ export class GardenScene extends GardenSceneBase {
       const o = OBJECTS.find((x) => x.id === id);
       if (!o) continue;
       const p = tw(o.tx, o.ty);
-      const hint = id === "shop" ? "E — Do'konga kirish" : id === "barn" ? "E — Molxona" : "E — Uy";
-      consider({ kind: id, id, x: p.x, y: p.y, hint, run: () => {
+      const hint = id === "shop" ? "E — Do'konga kirish" : id === "barn" ? "E — Molxonaga qarash" : "E — Uyga qarash";
+      consider({ kind: id, id, x: p.x, y: p.y + 20, hint, run: () => {
         if (id === "shop") this.model.talkTom();
-        else if (id === "barn" || id === "house") this.model.openDialogue?.([{ speaker: id === "barn" ? "Molxona" : "Uy", text: id === "barn" ? "Eski molxona." : "Boboning uyi." }] as never);
+        else if (id === "barn" || id === "house") {
+          this.model.openDialogue([
+            { speaker: id === "barn" ? "Molxona" : "Uy", text: id === "barn" ? "Eski molxona. Keyinroq hayvonlar uchun foydali bo'ladi." : "Boboning uyi. Issiq va xotirjam." },
+          ]);
+        }
       }});
     }
     const gate = OBJECTS.find((x) => x.id === "gate");
@@ -143,6 +147,15 @@ export class GardenScene extends GardenSceneBase {
         if (id === "mira") this.model.talkMira();
         else this.model.talkTom();
       }});
+    }
+    for (const s of this.animals) {
+      const kind = s.getData("kind") as string;
+      const id = s.getData("id") as string;
+      if (kind === "cow") {
+        consider({ kind: "cow", id, x: s.x, y: s.y, hint: "E — Sut olish", run: () => this.model.collectFromAnimal(id) });
+      } else if (kind === "fish") {
+        consider({ kind: "fish", id, x: s.x, y: s.y + 40, hint: "E — Baliq ovlash", run: () => this.model.tryFish(id) });
+      }
     }
     return best;
   }
