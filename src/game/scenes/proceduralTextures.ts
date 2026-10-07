@@ -154,6 +154,4 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
       g.fillStyle(0x3d7ea8, 1); g.fillTriangle(2, 5, 0, 2, 0, 8);
       g.fillStyle(0xffffff, 1); g.fillCircle(11, 4, 1.5);
     });
-  }
-
 }
