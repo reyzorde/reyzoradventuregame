@@ -34,7 +34,6 @@ export function isWalkableTile(t: number): boolean {
 export function createGrid(): number[] {
   const g = new Array(MAP_COLS * MAP_ROWS).fill(T.Grass);
 
-  // Soft grass variation + sparse wildflowers (natural, not noisy)
   for (let i = 0; i < g.length; i++) {
     const n = (i * 1103515245 + 12345) >>> 0;
     if (n % 7 === 0) g[i] = T.Grass2;
@@ -51,13 +50,10 @@ export function createGrid(): number[] {
     }
   };
 
-  // Northern water + shore band
   fill(0, 0, MAP_COLS, 6, T.Water);
   fill(0, 6, MAP_COLS, 1, T.Shore);
-  // Small pier
   fill(34, 4, 4, 3, T.Wood);
 
-  // Path painter — width in tiles
   const path = (x0: number, y0: number, x1: number, y1: number, w = 2) => {
     let x = x0;
     let y = y0;
@@ -70,42 +66,28 @@ export function createGrid(): number[] {
     fill(x1 - half, y1 - half, w, w, T.Path);
   };
 
-  // === Road network (connects all hubs) ===
-  // Main east–west spine (farm / village artery)
   path(8, 20, 56, 20, 2);
-  // House spur (west)
   path(8, 14, 8, 20, 2);
   path(8, 14, 12, 14, 2);
-  // Farm access loop — left edge → top → right edge → spine
   path(17, 20, 17, 15, 2);
-  path(17, 15, 27, 15, 2);
-  path(27, 15, 27, 20, 2);
-  // Well spur (east of farm)
-  path(27, 16, 30, 16, 2);
-  // Barn approach — south-west of farm, clear frontage on spine
-  path(14, 20, 14, 22, 2);
-  path(14, 22, 15, 22, 2);
-  // Vertical artery toward south
+  path(17, 15, 24, 15, 2);
+  path(24, 15, 24, 20, 2);
+  path(24, 17, 30, 17, 2);
+  path(13, 20, 13, 21, 2);
   path(36, 8, 36, 40, 3);
-  // Village square approach
   path(36, 20, 46, 20, 2);
   path(46, 20, 46, 24, 2);
-  // Gate / forest road
   path(36, 14, 56, 14, 2);
   path(56, 14, 56, 12, 2);
-  // Soft side trails (gameplay shortcuts, not noise)
   path(20, 20, 20, 24, 2);
   path(20, 24, 24, 24, 2);
   path(42, 20, 42, 16, 2);
   path(48, 24, 52, 24, 2);
   path(52, 24, 52, 20, 2);
 
-  // === Farm soil pad — single coherent rectangle (walkable dirt) ===
-  // Cols 18–26, rows 16–19 → 3 plot rows with side walk space
-  fill(18, 16, 9, 4, T.Dirt);
-  // House yard
+  // Tight farm pad for contiguous 3×3 crop cells
+  fill(18, 16, 5, 4, T.Dirt);
   fill(6, 13, 7, 5, T.Dirt);
-  // Village cobble plaza
   fill(42, 18, 9, 8, T.Cobble);
 
   return g;
@@ -122,40 +104,22 @@ const plot = (id: string, col: number, row: number, unlocked: boolean): PlotStat
   unlocked,
 });
 
-/**
- * Farm plots — neat 3×3 grid on the dirt pad.
- * Columns 19 / 21 / 23 (1-tile walk lanes between), rows 16 / 17 / 19.
- * Front 6 unlocked; back-right 3 locked for smallGarden upgrade.
- */
+/** Contiguous 3×3 crop grid — no skipped columns */
 export const INITIAL_PLOTS: PlotState[] = [
-  // Row north (closest to top path)
   plot("p1", 19, 16, true),
-  plot("p2", 21, 16, true),
-  plot("p3", 23, 16, true),
-  // Middle row
+  plot("p2", 20, 16, true),
+  plot("p3", 21, 16, true),
   plot("p4", 19, 17, true),
-  plot("p5", 21, 17, true),
-  plot("p6", 23, 17, true),
-  // South / expansion (locked until smallGarden)
-  plot("p7", 19, 19, false),
-  plot("p8", 21, 19, false),
-  plot("p9", 23, 19, false),
+  plot("p5", 20, 17, true),
+  plot("p6", 21, 17, true),
+  plot("p7", 19, 18, false),
+  plot("p8", 20, 18, false),
+  plot("p9", 21, 18, false),
 ];
 
 export type ObjKind =
-  | "house"
-  | "barn"
-  | "well"
-  | "shop"
-  | "tree"
-  | "pine"
-  | "gate"
-  | "weed"
-  | "rock"
-  | "log"
-  | "sign"
-  | "mushroom"
-  | "bush";
+  | "house" | "barn" | "well" | "shop" | "tree" | "pine"
+  | "gate" | "weed" | "rock" | "log" | "sign" | "mushroom" | "bush";
 
 export interface WorldObj {
   id: string;
@@ -179,11 +143,10 @@ export const OBJECTS: WorldObj[] = [
     body: { ox: 24, oy: 70, w: 100, h: 36 },
   },
   {
-    // South-west of farm pad — clear front on path (14,22), does not block crop rows
     id: "barn",
     kind: "barn",
-    tx: 14,
-    ty: 22,
+    tx: 13,
+    ty: 18,
     collide: true,
     interact: true,
     body: { ox: 22, oy: 90, w: 100, h: 30 },
@@ -191,8 +154,8 @@ export const OBJECTS: WorldObj[] = [
   {
     id: "well",
     kind: "well",
-    tx: 30,
-    ty: 15,
+    tx: 26,
+    ty: 17,
     collide: true,
     interact: true,
     body: { ox: 16, oy: 48, w: 36, h: 24 },
@@ -218,13 +181,11 @@ export const OBJECTS: WorldObj[] = [
   { id: "sign", kind: "sign", tx: 54, ty: 13, collide: true, interact: true },
 ];
 
-// Scattered canopy trees (off-path, natural clusters)
 const TREE_SPOTS: [number, number][] = [
   [3, 9], [5, 12], [15, 8], [18, 9], [22, 8], [27, 9],
   [40, 8], [48, 8], [52, 10], [60, 16], [62, 22],
   [4, 32], [7, 36], [16, 38], [24, 40], [32, 38],
   [48, 34], [54, 32], [60, 30], [14, 32], [28, 34],
-  // Keep clear of barn front (14,22) and farm pad
   [10, 26], [22, 28], [40, 28], [50, 28],
 ];
 TREE_SPOTS.forEach(([tx, ty], i) => {
@@ -238,7 +199,6 @@ TREE_SPOTS.forEach(([tx, ty], i) => {
   });
 });
 
-// Bushes — kept off farm pad, barn front, and main paths
 const BUSH_SPOTS: [number, number][] = [
   [5, 17], [11, 24], [26, 23], [33, 18], [38, 24],
   [41, 12], [49, 16], [53, 22], [11, 30], [20, 36],
@@ -256,17 +216,16 @@ BUSH_SPOTS.forEach(([tx, ty], i) => {
   });
 });
 
-// Weeds on farm edges only (not on plot tiles) — clear while working fields
 (
   [
     ["w1", 18, 16, 0],
-    ["w2", 20, 15, 1],
-    ["w3", 24, 15, 2],
-    ["w4", 26, 16, 0],
-    ["w5", 18, 19, 1],
-    ["w6", 26, 19, 2],
-    ["w7", 22, 15, 0],
-    ["w8", 25, 18, 1],
+    ["w2", 18, 17, 1],
+    ["w3", 18, 18, 2],
+    ["w4", 22, 16, 0],
+    ["w5", 22, 17, 1],
+    ["w6", 22, 18, 2],
+    ["w7", 20, 15, 0],
+    ["w8", 20, 19, 1],
   ] as const
 ).forEach(([id, tx, ty, v]) => {
   OBJECTS.push({
@@ -288,21 +247,10 @@ OBJECTS.push(
   { id: "log-3", kind: "log", tx: 26, ty: 36, interact: true },
 );
 
-// Forest zone east of gate
 (
   [
-    [57, 8],
-    [59, 7],
-    [61, 9],
-    [58, 11],
-    [60, 13],
-    [62, 12],
-    [59, 15],
-    [61, 17],
-    [57, 18],
-    [63, 14],
-    [62, 19],
-    [58, 21],
+    [57, 8], [59, 7], [61, 9], [58, 11], [60, 13], [62, 12],
+    [59, 15], [61, 17], [57, 18], [63, 14], [62, 19], [58, 21],
   ] as const
 ).forEach(([tx, ty], i) => {
   OBJECTS.push({
@@ -336,13 +284,10 @@ OBJECTS.push(
 OBJECTS.push({ id: "forest-sign", kind: "sign", tx: 57, ty: 13, collide: true, interact: true });
 
 export const NPCS = [
-  // Mira near village plaza
   { id: "mira" as const, tx: 47, ty: 23 },
-  // Tom stands in front of the shop (shop tile 44,17)
   { id: "tom" as const, tx: 44, ty: 19 },
 ];
 
-/** Spawn on path near house */
 export const PLAYER_SPAWN = { x: 10 * TILE + 24, y: 20 * TILE + 24 };
 
 export const tw = (c: number, r: number) => ({
@@ -350,7 +295,6 @@ export const tw = (c: number, r: number) => ({
   y: r * TILE + TILE / 2,
 });
 
-/** Default animals — Level 1: cows (pasture) + fish (pond). No chickens. */
 export const INITIAL_ANIMALS: AnimalSave[] = [
   { id: "cow-1", kind: "cow", x: 22 * TILE + 24, y: 30 * TILE + 24, lastCollect: 0 },
   { id: "cow-2", kind: "cow", x: 26 * TILE + 24, y: 32 * TILE + 24, lastCollect: 0 },
@@ -359,12 +303,11 @@ export const INITIAL_ANIMALS: AnimalSave[] = [
   { id: "fish-3", kind: "fish", x: 40 * TILE + 24, y: 3 * TILE + 24, lastCollect: 0 },
 ];
 
-/** Map landmark labels (tile coords) for minimap */
 export const MAP_LANDMARKS = [
   { id: "house", label: "Uy", tx: 9, ty: 11 },
-  { id: "farm", label: "Ferma", tx: 21, ty: 17 },
-  { id: "barn", label: "Molxona", tx: 14, ty: 22 },
-  { id: "well", label: "Quduq", tx: 30, ty: 15 },
+  { id: "farm", label: "Ferma", tx: 20, ty: 17 },
+  { id: "barn", label: "Molxona", tx: 13, ty: 18 },
+  { id: "well", label: "Quduq", tx: 26, ty: 17 },
   { id: "shop", label: "Do'kon", tx: 44, ty: 17 },
   { id: "gate", label: "Darvoza", tx: 56, ty: 11 },
   { id: "water", label: "Suv", tx: 32, ty: 3 },
