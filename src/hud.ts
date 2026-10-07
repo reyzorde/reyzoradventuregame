@@ -64,7 +64,11 @@ function playHtml(h: HudSnapshot): string {
     const n = h.inventory[cfg.seedItem] ?? 0;
     const on = h.selectedSeed === c ? "on" : "";
     const ic = c === "carrot" ? "🥕" : c === "tomato" ? "🍅" : "🍓";
-    return `<button class="slot ${on}" data-seed="${c}" title="${cfg.nameUz}"><span class="ic">${ic}</span><span>${i + 1}</span><span>${n}</span></button>`;
+    return `<button class="slot ${on}" data-seed="${c}" title="${cfg.nameUz} (${n})">
+      <span class="slot-key">${i + 1}</span>
+      <span class="ic">${ic}</span>
+      <span class="slot-count">${n}</span>
+    </button>`;
   }).join("");
 
   const notes = h.notices.map((n) => `<div class="panel note">${n.text}</div>`).join("");
@@ -98,11 +102,13 @@ function playHtml(h: HudSnapshot): string {
 
   return `
     <div class="top">
-      <div class="panel pill no-pointer">🪙 ${h.coins}</div>
-      <div class="panel pill no-pointer">💧 ${h.water}/${h.waterMax}</div>
-      <div style="display:flex;gap:6px">
-        <button class="panel pill hit" data-act="map" title="Xarita">🗺️</button>
-        <button class="panel pill hit" data-act="inv" title="Sumka">🎒</button>
+      <div class="res-group no-pointer">
+        <div class="res-pill" title="Tangalar"><span class="res-ic">🪙</span><span>${h.coins}</span></div>
+        <div class="res-pill" title="Suv"><span class="res-ic">💧</span><span>${h.water}/${h.waterMax}</span></div>
+      </div>
+      <div class="tool-group hit">
+        <button class="tool-btn" data-act="map" title="Xarita (M)">🗺</button>
+        <button class="tool-btn" data-act="inv" title="Sumka (I)">🎒</button>
       </div>
     </div>
     <div class="panel quest ${h.questCollapsed ? "collapsed" : ""} no-pointer">
@@ -114,9 +120,7 @@ function playHtml(h: HudSnapshot): string {
     </div>
     ${h.tutorial ? `<div class="panel tut no-pointer">${h.tutorial}</div>` : ""}
     ${h.interactHint ? `<div class="ih no-pointer">${h.interactHint}</div>` : ""}
-    <div class="hot hit">${slots}
-      <div class="slot no-pointer"><span class="ic">💧</span><span>${h.water}</span></div>
-    </div>
+    <div class="hotbar hit" title="Urug' tanlash — 1 / 2 / 3">${slots}</div>
     <div class="notes no-pointer">${notes}</div>
     ${dlg}${shop}${inv}${map}
     <div class="mob hit">
@@ -152,20 +156,28 @@ function invHtml(h: HudSnapshot): string {
 function mapHtml(h: HudSnapshot): string {
   const px = (h.playerX / WORLD_W) * 100;
   const py = (h.playerY / WORLD_H) * 100;
+  const icon: Record<string, string> = {
+    house: "🏠", farm: "🌿", barn: "🏚️", well: "🪣",
+    shop: "🏪", gate: "🚪", water: "💧", pasture: "🐄",
+  };
   const marks = MAP_LANDMARKS.map((m) => {
     const x = ((m.tx + 0.5) / MAP_COLS) * 100;
     const y = ((m.ty + 0.5) / MAP_ROWS) * 100;
-    return `<span class="ml" style="left:${x}%;top:${y}%" title="${m.label}">${m.label[0]}</span>`;
+    const ic = icon[m.id] ?? "•";
+    return `<span class="ml" style="left:${x}%;top:${y}%" title="${m.label}"><i>${ic}</i><em>${m.label}</em></span>`;
   }).join("");
-  return `<div class="modal hit"><div class="panel mcard wide">
+  return `<div class="modal hit"><div class="panel mcard wide map-card">
     <div class="mh"><div><p class="eyebrow">Jahon</p><h2>Xarita</h2></div>
     <button class="xbtn" data-act="map">✕</button></div>
     <div class="minimap">
       <div class="mmap-bg"></div>
       ${marks}
-      <span class="mplayer" style="left:${px}%;top:${py}%"></span>
+      <span class="mplayer" style="left:${px}%;top:${py}%" title="Siz"></span>
     </div>
-    <p class="hint">Siz — sariq nuqta. Harflar — muhim joylar.</p>
+    <ul class="map-legend">
+      <li><span class="mplayer-dot"></span> Siz</li>
+      ${MAP_LANDMARKS.map((m) => `<li>${icon[m.id] ?? "•"} ${m.label}</li>`).join("")}
+    </ul>
   </div></div>`;
 }
 
@@ -174,7 +186,7 @@ function shopHtml(h: HudSnapshot): string {
     const cfg = CROP_CONFIGS[c];
     return `<div class="srow"><div><div class="n">${cfg.nameUz}</div><div class="m">Urug' ${cfg.seedCost} · Hosil ${cfg.harvestPrice}</div></div>
       <div class="sact"><button class="b" data-buy="${c}">Sotib olish</button>
-      <button class="s" data-sell="${c}">Sotish ×${h.inventory[cfg.harvestItem]}</button></div></div>`;
+      <button class="s" data-sell="${c}">Sotish ×${h.inventory[cfg.harvestItem] ?? 0}</button></div></div>`;
   }).join("");
   return `<div class="modal hit"><div class="panel mcard"><div class="mh"><div><p class="eyebrow">Tomning do'koni</p><h2>Bozor</h2><p class="hint">Tangalar: ${h.coins}</p></div>
     <button class="xbtn" data-act="close-shop">✕</button></div>${rows}</div></div>`;
