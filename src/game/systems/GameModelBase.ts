@@ -1,8 +1,7 @@
-import { ANIMAL_COOLDOWN, CROP_CONFIGS, CROP_LIST, FISH_COOLDOWN, GAME_MINUTE_MS, ITEM_LABELS, QUEST_DEFS, SELL_PRICE, TUTORIAL } from "../config";
-import { setMusicVolume, setSfxVolume, startMusic } from "./AudioSystem";
+import { CROP_CONFIGS, GAME_MINUTE_MS, QUEST_DEFS } from "../config";
 import { D } from "../data/dialogues";
-import type { CropId, DialogueLine, GameSave, HudSnapshot, ItemId, PlotState, QuestId } from "../types";
-import { sfx } from "./AudioSystem";
+import type { CropId, DialogueLine, GameSave, ItemId, PlotState, QuestId } from "../types";
+import { setMusicVolume, setSfxVolume, sfx, startMusic } from "./AudioSystem";
 import { bus } from "./events";
 import { clearSave, createNewSave, hasSave, loadSave, writeSave } from "./SaveSystem";
 
