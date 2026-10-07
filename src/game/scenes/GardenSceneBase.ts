@@ -171,7 +171,7 @@ export class GardenSceneBase extends Phaser.Scene {
   protected spawnAnimals(): void {
     this.animals = [];
     for (const a of this.model.save.animals) {
-      const key = a.kind === "cow" ? "cow" : a.kind === "chicken" ? "chicken" : "fish";
+      const key = a.kind === "cow" ? "cow" : "fish";
       const s = this.physics.add.sprite(a.x, a.y, key);
       s.setData("id", a.id);
       s.setData("kind", a.kind);
@@ -202,7 +202,7 @@ export class GardenSceneBase extends Phaser.Scene {
           state = "walk";
           timer = 800 + Math.random() * 1200;
           const a = Math.random() * Math.PI * 2;
-          const sp = kind === "chicken" ? 28 : 18;
+          const sp = kind === "cow" ? 28 : 36;
           s.setData("vx", Math.cos(a) * sp);
           s.setData("vy", Math.sin(a) * sp);
         } else {
