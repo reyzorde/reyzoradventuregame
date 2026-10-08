@@ -1,6 +1,21 @@
-import { ANIMAL_COOLDOWN, CROP_CONFIGS, CROP_LIST, FISH_COOLDOWN, ITEM_LABELS, QUEST_DEFS, SELL_PRICE, TUTORIAL } from "../config";
+import {
+  ANIMAL_COOLDOWN,
+  CROP_CONFIGS,
+  CROP_LIST,
+  FISH_COOLDOWN,
+  ITEM_LABELS,
+  PLAYER_SPEED,
+  QUEST_DEFS,
+  SELL_PRICE,
+  TUTORIAL,
+  UPGRADE_DEFS,
+  UPGRADE_LIST,
+  formatGrowth,
+  upgradeCost,
+  upgradeValue,
+} from "../config";
 import { D } from "../data/dialogues";
-import type { CropId, HudSnapshot, ItemId, PlotState } from "../types";
+import type { CropId, HudSnapshot, ItemId, PlotState, UpgradeId, UpgradeView } from "../types";
 import { setMusicVolume, setSfxVolume, sfx } from "./AudioSystem";
 import { GameModelBase } from "./GameModelBase";
 
@@ -71,68 +86,83 @@ export class GameModel extends GameModelBase {
       case "TILLED": return "E — Urug' ekish";
       case "PLANTED": return "E — Sug'orish";
       case "WATERED":
-      case "GROWING": return "Ekin o'smoqda";
+      case "GROWING": {
+        if (p.cropId && p.wateredAt != null) {
+          const cfg = CROP_CONFIGS[p.cropId];
+          const left = Math.max(0, cfg.growthMs - (Date.now() - p.wateredAt));
+          return `O'smoqda… ${formatGrowth(left)}`;
+        }
+        return "Ekin o'smoqda";
+      }
       case "READY": return "E — Hosilni yig'ish";
       default: return "E — O'zaro ta'sir";
     }
   }
 
-  pullWeed(id: string): boolean {
+  collectWeed(id: string): boolean {
     if (this.save.weedsCleared.includes(id)) return false;
     this.save.weedsCleared.push(id);
-    sfx("till");
+    sfx("weed");
     this.push("Begona o't yulindi");
     this.advanceQuest("clear_garden");
-    if (this.save.tutorialStep < 2) this.save.tutorialStep = 2;
     this.persist(); this.emit();
     return true;
   }
 
-  fillWater(): void {
-    this.save.water = this.save.waterMax;
-    sfx("water");
-    this.push("Suv to'ldirildi");
+  collectPickup(id: string, item: ItemId): boolean {
+    if (this.save.pickupsTaken.includes(id)) return false;
+    this.save.pickupsTaken.push(id);
+    this.addItem(item, 1);
+    sfx("pickup");
+    this.push(`${ITEM_LABELS[item]} olindi`);
     this.persist(); this.emit();
+    return true;
   }
 
-  talkMira(): void {
-    if (!this.save.miraIntroDone) {
-      this.save.miraIntroDone = true;
-      this.openDialogue(D.mira_intro);
-      this.persist();
-      return;
-    }
-    if (this.save.quests.active === "help_village" && !this.save.miraCarrotsGiven) {
-      if ((this.save.inventory.carrot ?? 0) >= 2) {
-        this.addItem("carrot", -2);
-        this.save.miraCarrotsGiven = true;
-        this.advanceQuest("help_village", 2);
-        this.openDialogue(D.mira_receive);
-        this.persist();
-        return;
-      }
-      this.openDialogue(D.mira_want);
-      return;
-    }
-    if (this.save.quests.active === "gather_mushrooms" || this.save.quests.active === "enter_forest") {
-      this.openDialogue(D.mira_forest);
-      return;
-    }
-    if (this.save.upgrades.smallGarden) { this.openDialogue(D.mira_after); return; }
-    this.openDialogue(D.mira_idle);
+  selectSeed(id: CropId): void {
+    this.selectedSeed = id;
+    this.emit();
   }
 
-  talkTom(): void {
-    this.openDialogue(D.tom, () => this.openShop());
+  toggleInventory(): void {
+    this.inventoryOpen = !this.inventoryOpen;
+    this.shopOpen = false;
+    this.mapOpen = false;
+    this.emit();
   }
 
-  openShop(): void { this.shopOpen = true; sfx("ui"); this.emit(); }
-  closeShop(): void { this.shopOpen = false; this.emit(); }
-  toggleInventory(): void { this.inventoryOpen = !this.inventoryOpen; if (this.inventoryOpen) this.mapOpen = false; sfx("open"); this.emit(); }
+  toggleMap(): void {
+    this.mapOpen = !this.mapOpen;
+    this.shopOpen = false;
+    this.inventoryOpen = false;
+    this.emit();
+  }
 
-  buySeed(crop: CropId): void {
-    const cfg = CROP_CONFIGS[crop];
-    if (this.save.coins < cfg.seedCost) { this.push("Tangalar yetarli emas"); return; }
+  toggleQuest(): void {
+    this.questCollapsed = !this.questCollapsed;
+    this.emit();
+  }
+
+  openShop(): void {
+    this.shopOpen = true;
+    this.inventoryOpen = false;
+    this.mapOpen = false;
+    sfx("ui");
+    this.emit();
+  }
+
+  closeShop(): void {
+    this.shopOpen = false;
+    this.emit();
+  }
+
+  buySeed(id: CropId): void {
+    const cfg = CROP_CONFIGS[id];
+    if (this.save.coins < cfg.seedCost) {
+      this.push("Tangalar yetarli emas");
+      sfx("ui");
+      return;
+    }
     this.save.coins -= cfg.seedCost;
     this.addItem(cfg.seedItem, 1);
     sfx("coin");
@@ -140,51 +170,59 @@ export class GameModel extends GameModelBase {
     this.persist(); this.emit();
   }
 
-  sellCrop(crop: CropId): void {
-    const cfg = CROP_CONFIGS[crop];
-    if ((this.save.inventory[cfg.harvestItem] ?? 0) < 1) { this.push("Sotadigan hosil yo'q"); return; }
+  sellCrop(id: CropId): void {
+    const cfg = CROP_CONFIGS[id];
+    if ((this.save.inventory[cfg.harvestItem] ?? 0) < 1) {
+      this.push("Sotadigan hosil yo'q");
+      return;
+    }
     this.addItem(cfg.harvestItem, -1);
     this.addCoins(cfg.harvestPrice);
     this.persist(); this.emit();
   }
 
-  takePickup(id: string, item: ItemId): boolean {
-    if (this.save.pickupsTaken.includes(id)) return false;
-    this.save.pickupsTaken.push(id);
-    this.addItem(item, 1);
-    sfx("harvest");
-    this.push(`${ITEM_LABELS[item]} olindi`);
+  talkMira(): void {
+    if (!this.save.miraIntroDone) {
+      this.save.miraIntroDone = true;
+      this.openDialogue(D.mira_intro, () => {
+        this.push("Mira bilan suhbatlashdingiz");
+        this.persist();
+      });
+      return;
+    }
+    if (this.save.quests.active === "help_village" && !this.save.miraCarrotsGiven) {
+      const n = this.save.inventory.carrot ?? 0;
+      if (n >= 2) {
+        this.addItem("carrot", -2);
+        this.save.miraCarrotsGiven = true;
+        this.advanceQuest("help_village", 2);
+        this.openDialogue(D.mira_thanks);
+        this.persist();
+      } else {
+        this.openDialogue(D.mira_need_carrots);
+      }
+      return;
+    }
+    this.openDialogue(D.mira_chat);
+  }
+
+  talkTom(): void {
+    this.openDialogue(D.tom_greet, () => this.openShop());
+  }
+
+  fillWater(): void {
+    if (this.save.water >= this.save.waterMax) {
+      this.push("Idish to'la");
+      return;
+    }
+    this.save.water = this.save.waterMax;
+    sfx("water");
+    this.push("Suv to'ldirildi");
     this.persist(); this.emit();
-    return true;
   }
 
-  selectSeed(crop: CropId): void { this.selectedSeed = crop; sfx("ui"); this.emit(); }
-  setHint(h: string | null): void { if (this.interactHint === h) return; this.interactHint = h; this.emit(); }
-  noteMoved(): void { if (this.save.tutorialStep === 0) { this.save.tutorialStep = 1; this.emit(); } }
-
-  clock(): string {
-    const t = Math.floor(this.save.time.minutes) % (24 * 60);
-    const h = Math.floor(t / 60), m = t % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  }
-
-  tutorial(): string | null {
-    if (!this.playing) return null;
-    if (this.save.tutorialStep <= 2) return TUTORIAL[this.save.tutorialStep] ?? null;
-    return null;
-  }
-
-  toggleMap(): void {
-    this.mapOpen = !this.mapOpen;
-    if (this.mapOpen) { this.inventoryOpen = false; this.shopOpen = false; }
-    sfx("open");
-    this.emit();
-  }
-
-  toggleQuestPanel(): void {
-    this.questCollapsed = !this.questCollapsed;
-    sfx("ui");
-    this.emit();
+  noteMoved(): void {
+    // reserved for future tracking
   }
 
   setVolumes(music: number, sfxV: number): void {
@@ -193,7 +231,18 @@ export class GameModel extends GameModelBase {
     setMusicVolume(music);
     setSfxVolume(sfxV);
     this.persist();
-    this.emit();
+  }
+
+  clock(): string {
+    const m = Math.floor(this.save.time.minutes) % (24 * 60);
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+  }
+
+  tutorial(): string | null {
+    if (this.save.tutorialStep >= TUTORIAL.length) return null;
+    return TUTORIAL[this.save.tutorialStep] ?? null;
   }
 
   collectFromAnimal(id: string): boolean {
@@ -247,25 +296,99 @@ export class GameModel extends GameModelBase {
     sfx("boundary");
   }
 
+  /** Current walk speed from upgrade level */
+  moveSpeed(): number {
+    const lv = this.save.upgradeLevels?.move_speed ?? 0;
+    return upgradeValue("move_speed", lv) || PLAYER_SPEED;
+  }
+
+  upgradeViews(): UpgradeView[] {
+    return UPGRADE_LIST.map((id) => {
+      const def = UPGRADE_DEFS[id];
+      const level = this.save.upgradeLevels?.[id] ?? 0;
+      const cost = upgradeCost(id, level);
+      const atMax = level >= def.maxLevel;
+      return {
+        id,
+        nameUz: def.nameUz,
+        description: def.description,
+        level,
+        maxLevel: def.maxLevel,
+        currentValue: upgradeValue(id, level),
+        nextValue: atMax ? null : upgradeValue(id, level + 1),
+        cost,
+        unit: def.unit,
+        canAfford: cost != null && this.save.coins >= cost,
+        atMax,
+      };
+    });
+  }
+
+  buyUpgrade(id: UpgradeId): boolean {
+    const def = UPGRADE_DEFS[id];
+    if (!def) return false;
+    if (!this.save.upgradeLevels) this.save.upgradeLevels = { water_cap: 0, move_speed: 0 };
+    const level = this.save.upgradeLevels[id] ?? 0;
+    if (level >= def.maxLevel) {
+      this.push("Maksimal daraja");
+      return false;
+    }
+    const cost = upgradeCost(id, level);
+    if (cost == null) return false;
+    if (this.save.coins < cost) {
+      this.push(`Tangalar yetarli emas (${cost}🪙 kerak)`);
+      sfx("ui");
+      return false;
+    }
+    this.save.coins -= cost;
+    this.save.upgradeLevels[id] = level + 1;
+    if (id === "water_cap") {
+      const next = upgradeValue("water_cap", level + 1);
+      const prev = this.save.waterMax;
+      this.save.waterMax = next;
+      this.save.water = Math.min(this.save.water + (next - prev), next);
+    }
+    sfx("quest");
+    this.push(`${def.nameUz} → daraja ${level + 1}`);
+    this.persist();
+    this.emit();
+    return true;
+  }
+
   snapshot(): HudSnapshot {
     const qid = this.save.quests.active;
     const def = qid ? QUEST_DEFS[qid] : null;
+    const wLv = this.save.upgradeLevels?.water_cap ?? 0;
+    this.save.waterMax = upgradeValue("water_cap", wLv);
     return {
-      coins: this.save.coins, water: this.save.water, waterMax: this.save.waterMax,
-      day: this.save.time.day, clock: this.clock(), inventory: { ...this.save.inventory },
+      coins: this.save.coins,
+      water: this.save.water,
+      waterMax: this.save.waterMax,
+      day: this.save.time.day,
+      clock: this.clock(),
+      inventory: { ...this.save.inventory },
       selectedSeed: this.selectedSeed,
       questTitle: def?.title ?? "Barcha topshiriqlar bajarildi",
       questObjective: def?.objective ?? "O'rmon va undan keyingi joylar kutilmoqda.",
       questProgress: qid ? (this.save.quests.progress[qid] ?? 0) : 1,
-      questTarget: def?.target ?? 1, questReward: def?.rewardLabel ?? "",
+      questTarget: def?.target ?? 1,
+      questReward: def?.rewardLabel ?? "",
       interactHint: this.playing ? this.interactHint : null,
-      tutorial: this.tutorial(), notices: this.notices,
-      dialogue: this.currentDialogue(), shopOpen: this.shopOpen, inventoryOpen: this.inventoryOpen,
-      menu: this.menu, hasSave: this.hasSave(), playing: this.playing,
-      mapOpen: this.mapOpen, questCollapsed: this.questCollapsed,
-      playerX: this.save.player.x, playerY: this.save.player.y,
-      musicVol: this.save.audio?.music ?? 0.35, sfxVol: this.save.audio?.sfx ?? 0.7,
-      upgrades: this.getUpgradeViews?.() ?? [],
+      tutorial: this.tutorial(),
+      notices: this.notices,
+      dialogue: this.currentDialogue(),
+      shopOpen: this.shopOpen,
+      inventoryOpen: this.inventoryOpen,
+      menu: this.menu,
+      hasSave: this.hasSave(),
+      playing: this.playing,
+      mapOpen: this.mapOpen,
+      questCollapsed: this.questCollapsed,
+      playerX: this.save.player.x,
+      playerY: this.save.player.y,
+      musicVol: this.save.audio?.music ?? 0.35,
+      sfxVol: this.save.audio?.sfx ?? 0.7,
+      upgrades: this.upgradeViews(),
     };
   }
 }
