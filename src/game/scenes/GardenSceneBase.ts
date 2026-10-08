@@ -1,10 +1,8 @@
-
 import Phaser from "phaser";
-import { CROP_CONFIGS, INTERACT_R, MAP_COLS, MAP_ROWS, PLAYER_SPEED, TILE, WORLD_H, WORLD_W } from "../config";
-import { D } from "../data/dialogues";
-import { INITIAL_ANIMALS, NPCS, OBJECTS, T, WALKABLE, createGrid, tw, type WorldObj } from "../data/map";
-import type { Facing, PlotState } from "../types";
-import { sfx, unlockAudio } from "../systems/AudioSystem";
+import { MAP_COLS, MAP_ROWS, TILE, WORLD_H, WORLD_W } from "../config";
+import { NPCS, OBJECTS, WALKABLE, createGrid, tw, type WorldObj } from "../data/map";
+import type { Facing } from "../types";
+import { unlockAudio } from "../systems/AudioSystem";
 import { bus } from "../systems/events";
 import type { GameModel } from "../systems/GameModel";
 import { generateProceduralTextures } from "./proceduralTextures";
@@ -48,20 +46,21 @@ export class GardenSceneBase extends Phaser.Scene {
     generateProceduralTextures(this);
     this.buildMap();
     this.spawnWorld();
-    this.spawnPlots();
     this.spawnPlayer();
     this.spawnNpcs();
     this.spawnAnimals();
-    this.setupInput();
-    this.setupProbe();
+    this.spawnPlots();
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     this.cameras.main.setDeadzone(50, 36);
     this.cameras.main.setZoom(1.18);
     this.cameras.main.roundPixels = true;
     this.scale.on("resize", this.onResize, this);
+    this.onResize();
+    this.setupInput();
+    this.setupProbe();
     this.overlay = this.add.rectangle(0, 0, WORLD_W, WORLD_H, 0x1a2e4a, 0).setOrigin(0).setDepth(800);
-    this.input.on("pointerdown", () => unlockAudio());
+    this.unsub = bus.on("playing", (on) => { if (on) this.time.delayedCall(0, () => this.scene.restart()); });
     this.events.once("shutdown", () => this.cleanup());
   }
 
@@ -79,13 +78,13 @@ export class GardenSceneBase extends Phaser.Scene {
         ? "tiles"
         : null;
     if (!texKey) {
-      console.error("[GardenScene] No tileset texture");
+      console.error("[GardenScene] No tileset texture — map layer skipped");
       this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
       return;
     }
     const ts = map.addTilesetImage(texKey, texKey, TILE, TILE, 0, 0);
     if (!ts) {
-      console.error("[GardenScene] addTilesetImage failed", texKey);
+      console.error("[GardenScene] addTilesetImage failed for", texKey);
       this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
       return;
     }
@@ -135,12 +134,12 @@ export class GardenSceneBase extends Phaser.Scene {
     if (o.kind === "house" || o.kind === "barn") s.setScale(1.1);
     if (o.collide) {
       const b = o.body ?? { ox: 20, oy: 50, w: 40, h: 20 };
-      const sc = s.scaleX;
+      const scale = s.scaleX;
       const z = this.add.zone(
-        x - (s.width * sc) / 2 + b.ox * sc + (b.w * sc) / 2,
-        footY - s.height * sc + b.oy * sc + (b.h * sc) / 2,
-        b.w * sc,
-        b.h * sc,
+        x - (s.width * scale) / 2 + b.ox * scale + (b.w * scale) / 2,
+        footY - s.height * scale + b.oy * scale + (b.h * scale) / 2,
+        b.w * scale,
+        b.h * scale,
       );
       this.physics.add.existing(z, true);
       this.blockers.add(z);
@@ -153,7 +152,7 @@ export class GardenSceneBase extends Phaser.Scene {
     this.player = this.physics.add.sprite(x, y, "player");
     this.player.setSize(14, 12).setOffset(8, 50);
     this.player.setCollideWorldBounds(true).setDepth(y);
-    if (this.layer) this.physics.add.collider(this.player, this.layer);
+    this.physics.add.collider(this.player, this.layer);
     this.physics.add.collider(this.player, this.blockers);
   }
 
@@ -186,7 +185,7 @@ export class GardenSceneBase extends Phaser.Scene {
         s.setDepth(a.y);
         s.setSize(16, 10).setOffset(8, 18);
         this.physics.add.collider(s, this.blockers);
-        if (this.layer) this.physics.add.collider(s, this.layer);
+        this.physics.add.collider(s, this.layer);
       }
       this.animals.push(s);
     }
@@ -200,16 +199,16 @@ export class GardenSceneBase extends Phaser.Scene {
       if (timer <= 0) {
         if (state === "idle") {
           state = "walk";
-          timer = 800 + Math.random() * 1200;
-          const a = Math.random() * Math.PI * 2;
-          const sp = kind === "cow" ? 28 : 36;
-          s.setData("vx", Math.cos(a) * sp);
-          s.setData("vy", Math.sin(a) * sp);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = kind === "cow" ? 28 : 36;
+          s.setData("vx", Math.cos(ang) * spd);
+          s.setData("vy", Math.sin(ang) * spd);
+          timer = 800 + Math.random() * 1600;
         } else {
           state = "idle";
-          timer = 600 + Math.random() * 1400;
           s.setData("vx", 0);
           s.setData("vy", 0);
+          timer = 600 + Math.random() * 1400;
         }
         s.setData("state", state);
       }
@@ -236,8 +235,7 @@ export class GardenSceneBase extends Phaser.Scene {
     for (const p of this.model.save.plots) {
       const { x, y } = tw(p.col, p.row);
       const c = this.add.container(x, y + TILE * 0.28).setDepth(y + 2).setVisible(false);
-      const cropKey = this.textures.exists("crop0") ? "crop0" : "weed";
-      const img = this.add.image(0, 0, cropKey).setOrigin(0.5, 1).setScale(1.35);
+      const img = this.add.image(0, 0, "crop0").setOrigin(0.5, 1).setScale(1.35);
       c.add(img);
       this.crops.set(p.id, c);
     }
@@ -259,16 +257,17 @@ export class GardenSceneBase extends Phaser.Scene {
     this.input.keyboard.on("keydown-ONE", () => this.model.selectSeed("carrot"));
     this.input.keyboard.on("keydown-TWO", () => this.model.selectSeed("tomato"));
     this.input.keyboard.on("keydown-THREE", () => this.model.selectSeed("strawberry"));
+    this.input.on("pointerdown", () => unlockAudio());
   }
 
   protected setupProbe(): void {
-    (window as unknown as { __controlsTest?: unknown; __gameModel?: GameModel }).__controlsTest = {
+    window.__controlsTest = {
       getYaw: () => ({ right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[this.facing]),
       getSpeed: () => this.speed,
       getPosition: () => ({ x: this.player.x, y: this.player.y }),
       setKeys: (codes: string[]) => { this.model.injectedKeys = new Set(codes); },
     };
-    (window as unknown as { __gameModel?: GameModel }).__gameModel = this.model;
+    window.__gameModel = this.model;
   }
 
   protected onResize = (): void => {

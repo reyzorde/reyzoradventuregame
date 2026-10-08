@@ -13,7 +13,6 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
     // tileset strip 11 tiles
     if (!scene.textures.exists("tileset")) {
       const g = scene.make.graphics({ x: 0, y: 0 });
-      // Muted indie palette: grass, grass2, path, dirt, soil, soilWet, water, shore, cobble, wood, flowers
       const cols = [
         0x4a7a3a, 0x3f6e34, 0xb89a6a, 0x7a5c38, 0x6b4a2a, 0x5a3c22,
         0x3d7ea8, 0xc9b48a, 0x8a8680, 0x9a7040, 0x5a8a42,
@@ -28,11 +27,9 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
           g.fillRect(x, y, 2, 2);
         }
       });
-      // water shimmer
       g.fillStyle(0x7ec8e3, 0.35);
       g.fillRect(6 * TILE + 8, 10, 20, 6);
       g.fillRect(6 * TILE + 18, 28, 16, 5);
-      // flowers on tile 10
       g.fillStyle(0xf0e070, 1);
       g.fillCircle(10 * TILE + 14, 16, 3);
       g.fillStyle(0xe070a0, 1);
@@ -40,15 +37,18 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
       g.fillStyle(0xffffff, 1);
       g.fillCircle(10 * TILE + 22, 36, 3);
       g.generateTexture("tileset", TILE * 11, TILE);
-      // Same strip under legacy key "tiles"
       if (!scene.textures.exists("tiles")) {
         g.generateTexture("tiles", TILE * 11, TILE);
       }
       g.destroy();
     }
     if (!scene.textures.exists("tiles") && scene.textures.exists("tileset")) {
-      const img = scene.textures.get("tileset").getSourceImage() as CanvasImageSource;
-      scene.textures.addImage("tiles", img);
+      const src = scene.textures.get("tileset").getSourceImage();
+      if (src instanceof HTMLCanvasElement) {
+        scene.textures.addCanvas("tiles", src);
+      } else if (src instanceof HTMLImageElement) {
+        scene.textures.addImage("tiles", src);
+      }
     }
     mk("player", 32, 48, (g) => {
       g.fillStyle(0x3d7a4a, 1); g.fillRoundedRect(6, 18, 20, 22, 4);
