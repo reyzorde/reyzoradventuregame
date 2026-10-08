@@ -1,7 +1,7 @@
 import { CROP_CONFIGS, GAME_MINUTE_MS, QUEST_DEFS } from "../config";
 import { D } from "../data/dialogues";
 import type { CropId, DialogueLine, GameSave, ItemId, PlotState, QuestId } from "../types";
-import { setMusicVolume, setSfxVolume, sfx, startMusic } from "./AudioSystem";
+import { sfx, startMusic } from "./AudioSystem";
 import { bus } from "./events";
 import { clearSave, createNewSave, hasSave, loadSave, writeSave } from "./SaveSystem";
 
