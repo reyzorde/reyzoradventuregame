@@ -39,7 +39,7 @@ export class GardenScene extends GardenSceneBase {
     x += this.model.joystick.x; y += this.model.joystick.y;
     const len = Math.hypot(x, y);
     if (len > 0.15) { x /= len; y /= len; } else { x = 0; y = 0; }
-    const spd = typeof this.model.moveSpeed === "function" ? this.model.moveSpeed() : 170;
+    const spd = this.model.moveSpeed();
     this.player.setVelocity(x * spd, y * spd);
     this.speed = Math.hypot(this.player.body?.velocity.x ?? 0, this.player.body?.velocity.y ?? 0);
     if (len > 0.15) {
