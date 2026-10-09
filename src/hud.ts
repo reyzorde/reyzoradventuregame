@@ -1,9 +1,9 @@
-import { CROP_CONFIGS, CROP_LIST, ITEM_DESC, ITEM_LABELS, SELL_PRICE } from "./game/config";
+import { CROP_CONFIGS, CROP_LIST, ITEM_DESC, ITEM_LABELS, SELL_PRICE, formatGrowth } from "./game/config";
 import { MAP_COLS, MAP_ROWS, WORLD_H, WORLD_W } from "./game/config";
 import { MAP_LANDMARKS } from "./game/data/map";
 import type { GameModel } from "./game/systems/GameModel";
 import { sfx, unlockAudio } from "./game/systems/AudioSystem";
-import type { CropId, HudSnapshot, ItemId } from "./game/types";
+import type { CropId, HudSnapshot, ItemId, UpgradeId } from "./game/types";
 
 export function mountHud(el: HTMLElement, model: GameModel): () => void {
   const render = () => {
@@ -30,7 +30,7 @@ function menuHtml(h: HudSnapshot): string {
       <p class="subtitle">Yangi Bog'</p>
       <p class="blurb">Bobongizdan meros qolgan kichik bog' sizni kutmoqda.</p>
       <div class="menu-actions">${actions}</div>
-      <p class="hint">WASD — yurish · E — ta'sir · I — sumka · M — xarita · 1–3 urug'</p>
+      <p class="hint">WASD — yurish · Space — sakrash · E — ta'sir · I — sumka · M — xarita</p>
     </div>
   </div>`;
 }
@@ -58,7 +58,6 @@ function portraitEmoji(speaker: string): string {
 }
 
 function playHtml(h: HudSnapshot): string {
-  const pct = h.questTarget ? Math.min(100, (h.questProgress / h.questTarget) * 100) : 100;
   const slots = CROP_LIST.map((c, i) => {
     const cfg = CROP_CONFIGS[c];
     const n = h.inventory[cfg.seedItem] ?? 0;
@@ -93,13 +92,7 @@ function playHtml(h: HudSnapshot): string {
   const inv = h.inventoryOpen ? invHtml(h) : "";
   const map = h.mapOpen ? mapHtml(h) : "";
 
-  const questBody = h.questCollapsed
-    ? ""
-    : `<h3>${h.questTitle}</h3>
-      <p>${h.questObjective}</p>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="meta"><span>${h.questProgress}/${h.questTarget}</span>${h.questReward ? `<span>${h.questReward}</span>` : ""}</div>`;
-
+  // Quest / tutorial / objectives — intentionally hidden from HUD (story via NPC dialogue only)
   return `
     <div class="top">
       <div class="res-group no-pointer">
@@ -107,26 +100,47 @@ function playHtml(h: HudSnapshot): string {
         <div class="res-pill" title="Suv"><span class="res-ic">💧</span><span>${h.water}/${h.waterMax}</span></div>
       </div>
       <div class="tool-group hit">
-        <button class="tool-btn" data-act="map" title="Xarita (M)">🗺</button>
+        <button class="tool-btn" data-act="map" title="Xarita (M)">🗺️</button>
         <button class="tool-btn" data-act="inv" title="Sumka (I)">🎒</button>
       </div>
     </div>
-    <div class="panel quest ${h.questCollapsed ? "collapsed" : ""} no-pointer">
-      <div class="quest-head hit" data-act="toggle-quest">
-        <div class="lab">Topshiriq</div>
-        <button class="qmin" type="button">${h.questCollapsed ? "▾" : "▴"}</button>
-      </div>
-      ${questBody}
-    </div>
-    ${h.tutorial ? `<div class="panel tut no-pointer">${h.tutorial}</div>` : ""}
     ${h.interactHint ? `<div class="ih no-pointer">${h.interactHint}</div>` : ""}
-    <div class="hotbar hit" title="Urug' tanlash — 1 / 2 / 3">${slots}</div>
+    <div class="hotbar hit" title="Urug' tanlash — 1 / 2 / 3 · Space — sakrash">
+      ${slots}
+    </div>
     <div class="notes no-pointer">${notes}</div>
     ${dlg}${shop}${inv}${map}
     <div class="mob hit">
       <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
       <button class="be" data-act="e">E</button>
+      <button class="be bj" data-act="jump" title="Sakrash">⤒</button>
     </div>`;
+}
+
+function upgradeCards(h: HudSnapshot): string {
+  const list = h.upgrades ?? [];
+  if (!list.length) return "";
+  return `<div class="upgrade-sec">
+    <p class="eyebrow">Yaxshilashlar</p>
+    <div class="upgrade-grid">
+      ${list.map((u) => {
+        const btn = u.atMax
+          ? `<button class="up-btn max" disabled>MAX</button>`
+          : `<button class="up-btn ${u.canAfford ? "" : "disabled"}" data-upgrade="${u.id}" ${u.canAfford ? "" : "disabled"}>
+              ${u.cost}🪙
+            </button>`;
+        return `<div class="up-card">
+          <div class="up-head"><b>${u.nameUz}</b><span>Lv ${u.level}/${u.maxLevel}</span></div>
+          <p class="up-desc">${u.description}</p>
+          <div class="up-vals">
+            <span>Hozir: <b>${u.currentValue}</b> ${u.unit}</span>
+            ${u.nextValue != null ? `<span>Keyingi: <b>${u.nextValue}</b></span>` : ""}
+          </div>
+          ${btn}
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
 }
 
 function invHtml(h: HudSnapshot): string {
@@ -146,6 +160,7 @@ function invHtml(h: HudSnapshot): string {
     <div class="mh"><div><p class="eyebrow">Sumka</p><h2>Inventar</h2></div>
     <button class="xbtn" data-act="inv">✕</button></div>
     <div class="igrid">${items}</div>
+    ${upgradeCards(h)}
     <div class="vol-row">
       <label>Musiqa <input type="range" min="0" max="100" value="${Math.round(h.musicVol * 100)}" data-vol="music" /></label>
       <label>Effekt <input type="range" min="0" max="100" value="${Math.round(h.sfxVol * 100)}" data-vol="sfx" /></label>
@@ -184,12 +199,18 @@ function mapHtml(h: HudSnapshot): string {
 function shopHtml(h: HudSnapshot): string {
   const rows = CROP_LIST.map((c) => {
     const cfg = CROP_CONFIGS[c];
-    return `<div class="srow"><div><div class="n">${cfg.nameUz}</div><div class="m">Urug' ${cfg.seedCost} · Hosil ${cfg.harvestPrice}</div></div>
+    return `<div class="srow"><div>
+        <div class="n">${cfg.nameUz}</div>
+        <div class="m">Urug' ${cfg.seedCost}🪙 · Sotish ${cfg.harvestPrice}🪙 · O'sish ${formatGrowth(cfg.growthMs)}</div>
+      </div>
       <div class="sact"><button class="b" data-buy="${c}">Sotib olish</button>
       <button class="s" data-sell="${c}">Sotish ×${h.inventory[cfg.harvestItem] ?? 0}</button></div></div>`;
   }).join("");
-  return `<div class="modal hit"><div class="panel mcard"><div class="mh"><div><p class="eyebrow">Tomning do'koni</p><h2>Bozor</h2><p class="hint">Tangalar: ${h.coins}</p></div>
-    <button class="xbtn" data-act="close-shop">✕</button></div>${rows}</div></div>`;
+  return `<div class="modal hit"><div class="panel mcard wide"><div class="mh"><div><p class="eyebrow">Tomning do'koni</p><h2>Bozor</h2><p class="hint">Tangalar: ${h.coins}🪙</p></div>
+    <button class="xbtn" data-act="close-shop">✕</button></div>
+    ${rows}
+    ${upgradeCards(h)}
+    </div></div>`;
 }
 
 function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
@@ -206,6 +227,7 @@ function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
   on('[data-act="toggle-quest"]', () => model.toggleQuestPanel());
   on('[data-act="close-shop"]', () => model.closeShop());
   on('[data-act="e"]', () => { model.interactQueued = true; });
+  on('[data-act="jump"]', () => { model.jumpQueued = true; });
   el.querySelectorAll<HTMLElement>("[data-seed]").forEach((b) => {
     b.addEventListener("click", () => model.selectSeed(b.dataset.seed as CropId));
   });
@@ -217,6 +239,12 @@ function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
   });
   el.querySelectorAll<HTMLElement>("[data-sell-item]").forEach((b) => {
     b.addEventListener("click", () => model.sellItem(b.dataset.sellItem as ItemId));
+  });
+  el.querySelectorAll<HTMLElement>("[data-upgrade]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const id = b.dataset.upgrade as UpgradeId;
+      if (id) model.buyUpgrade(id);
+    });
   });
   el.querySelectorAll<HTMLInputElement>("[data-vol]").forEach((inp) => {
     inp.addEventListener("input", () => {
