@@ -25,6 +25,7 @@ export class GameModelBase {
   lastSaveAt = 0;
   afterDialogue: (() => void) | null = null;
   interactQueued = false;
+  jumpQueued = false;
   listeners = new Set<() => void>();
 
   constructor() {
