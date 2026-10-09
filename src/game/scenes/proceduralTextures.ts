@@ -51,10 +51,35 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
       }
     }
     mk("player", 32, 48, (g) => {
+      g.fillStyle(0x000000, 0.18); g.fillEllipse(16, 44, 18, 6);
       g.fillStyle(0x3d7a4a, 1); g.fillRoundedRect(6, 18, 20, 22, 4);
+      g.fillStyle(0x2f5f3a, 1); g.fillRoundedRect(8, 20, 16, 8, 2);
       g.fillStyle(0xf0c090, 1); g.fillCircle(16, 14, 9);
       g.fillStyle(0xc4a060, 1); g.fillEllipse(16, 10, 20, 8);
+      g.fillStyle(0x5a3a18, 1); g.fillEllipse(16, 9, 14, 5);
       g.fillStyle(0x8b5a2b, 1); g.fillRect(10, 38, 5, 8); g.fillRect(17, 38, 5, 8);
+    });
+    (["down", "up", "left", "right"] as const).forEach((dir) => {
+      const drawBody = (g: Phaser.GameObjects.Graphics, legOff: number) => {
+        g.fillStyle(0x000000, 0.18); g.fillEllipse(16, 44, 18, 6);
+        g.fillStyle(0x3d7a4a, 1); g.fillRoundedRect(6, 18, 20, 22, 4);
+        g.fillStyle(0x2f5f3a, 1); g.fillRoundedRect(8, 20, 16, 8, 2);
+        g.fillStyle(0xf0c090, 1); g.fillCircle(16, 14, 9);
+        g.fillStyle(0xc4a060, 1); g.fillEllipse(16, 10, 20, 8);
+        if (dir === "up") {
+          g.fillStyle(0x5a3a18, 1); g.fillEllipse(16, 12, 16, 8);
+        } else {
+          g.fillStyle(0x2a2218, 1); g.fillCircle(13, 13, 1.5); g.fillCircle(19, 13, 1.5);
+        }
+        g.fillStyle(0x8b5a2b, 1);
+        g.fillRect(10, 38 + (legOff > 0 ? 0 : -legOff), 5, 8 + Math.abs(legOff));
+        g.fillRect(17, 38 + (legOff < 0 ? 0 : legOff), 5, 8 + Math.abs(legOff));
+      };
+      mk(`player_${dir}`, 32, 48, (g) => drawBody(g, 0));
+      for (let i = 0; i < 4; i++) {
+        const off = [0, 2, 0, -2][i];
+        mk(`player_${dir}_${i}`, 32, 48, (g) => drawBody(g, off));
+      }
     });
     mk("mira", 32, 48, (g) => {
       g.fillStyle(0xd4a0b8, 1); g.fillRoundedRect(6, 18, 20, 22, 4);
@@ -93,16 +118,21 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
       g.fillStyle(0xe84a6a, 1); g.fillRect(90, 70, 20, 16);
     });
     mk("tree", 90, 120, (g) => {
+      g.fillStyle(0x000000, 0.15); g.fillEllipse(45, 112, 40, 12);
       g.fillStyle(0x6b4a28, 1); g.fillRect(38, 70, 14, 45);
-      g.fillStyle(0x3d8a3a, 1); g.fillCircle(45, 55, 36);
+      g.fillStyle(0x2d6a2a, 1); g.fillCircle(45, 58, 38);
+      g.fillStyle(0x3d8a3a, 1); g.fillCircle(45, 50, 32);
       g.fillStyle(0x4fa84a, 1); g.fillCircle(30, 45, 22); g.fillCircle(60, 42, 24);
+      g.fillStyle(0x6aba5a, 0.5); g.fillCircle(48, 40, 14);
     });
     mk("pine", 70, 120, (g) => {
+      g.fillStyle(0x000000, 0.15); g.fillEllipse(35, 112, 28, 10);
       g.fillStyle(0x6b4a28, 1); g.fillRect(30, 80, 10, 35);
+      g.fillStyle(0x1e4a28, 1);
+      g.fillTriangle(35, 8, 2, 55, 68, 55);
       g.fillStyle(0x2d6a3a, 1);
-      g.fillTriangle(35, 10, 5, 55, 65, 55);
-      g.fillTriangle(35, 30, 8, 75, 62, 75);
-      g.fillTriangle(35, 50, 12, 95, 58, 95);
+      g.fillTriangle(35, 28, 6, 72, 64, 72);
+      g.fillTriangle(35, 48, 10, 92, 60, 92);
     });
     mk("gate", 100, 70, (g) => {
       g.fillStyle(0x8b6914, 1); g.fillRect(8, 10, 12, 55); g.fillRect(80, 10, 12, 55);
@@ -143,7 +173,46 @@ export function generateProceduralTextures(scene: Phaser.Scene): void {
     mk("crop3", 36, 40, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillEllipse(18, 22, 28, 30); g.fillStyle(0xd9443b, 1); g.fillCircle(12, 20, 5); g.fillCircle(24, 18, 5); g.fillCircle(18, 28, 5); });
     mk("droplet", 8, 8, (g) => { g.fillStyle(0x7ec8e3, 1); g.fillCircle(4, 4, 4); });
     mk("spark", 6, 6, (g) => { g.fillStyle(0xe8a838, 1); g.fillCircle(3, 3, 3); });
+    mk("leaf", 10, 10, (g) => {
+      g.fillStyle(0x5a9a3a, 1); g.fillEllipse(5, 5, 8, 5);
+      g.fillStyle(0x3d6a2a, 0.6); g.fillRect(4, 2, 1, 6);
+    });
+    mk("shadow", 28, 12, (g) => {
+      g.fillStyle(0x000000, 0.22); g.fillEllipse(14, 6, 26, 10);
+    });
+    mk("pollen", 6, 6, (g) => {
+      g.fillStyle(0xf0e8a0, 0.9); g.fillCircle(3, 3, 2.2);
+      g.fillStyle(0xffffff, 0.5); g.fillCircle(2.2, 2.2, 0.8);
+    });
+    mk("firefly", 8, 8, (g) => {
+      g.fillStyle(0xc8f060, 0.35); g.fillCircle(4, 4, 3.5);
+      g.fillStyle(0xe8ff80, 0.95); g.fillCircle(4, 4, 1.6);
+    });
+    mk("flower_sm", 12, 12, (g) => {
+      g.fillStyle(0xf0e070, 1); g.fillCircle(6, 6, 3);
+      g.fillStyle(0xe070a0, 1); g.fillCircle(3, 5, 2); g.fillCircle(9, 5, 2); g.fillCircle(6, 9, 2);
+      g.fillStyle(0xffffff, 1); g.fillCircle(6, 6, 1.2);
+    });
+    mk("grass_tuft", 16, 12, (g) => {
+      g.fillStyle(0x4a8a3a, 1);
+      g.fillTriangle(4, 12, 2, 2, 6, 12);
+      g.fillTriangle(8, 12, 7, 1, 10, 12);
+      g.fillTriangle(12, 12, 11, 3, 14, 12);
+    });
+    mk("crop_carrot_0", 22, 20, (g) => { g.fillStyle(0x6aa34a, 1); g.fillTriangle(11, 4, 5, 18, 17, 18); });
+    mk("crop_carrot_1", 24, 28, (g) => { g.fillStyle(0x5a9a3a, 1); g.fillTriangle(12, 2, 4, 16, 20, 16); g.fillStyle(0xe07a2f, 1); g.fillTriangle(12, 14, 8, 26, 16, 26); });
+    mk("crop_carrot_2", 26, 32, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillTriangle(13, 2, 4, 14, 22, 14); g.fillStyle(0xe07a2f, 1); g.fillTriangle(13, 12, 7, 30, 19, 30); });
+    mk("crop_carrot_3", 28, 34, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillTriangle(14, 1, 4, 14, 24, 14); g.fillStyle(0xe07a2f, 1); g.fillTriangle(14, 12, 6, 32, 22, 32); g.fillStyle(0xf0a050, 1); g.fillCircle(14, 20, 3); });
+    mk("crop_tomato_0", 22, 20, (g) => { g.fillStyle(0x5fad4a, 1); g.fillEllipse(11, 12, 14, 12); });
+    mk("crop_tomato_1", 26, 28, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillEllipse(13, 16, 18, 16); g.fillStyle(0xc45c3e, 0.7); g.fillCircle(13, 16, 5); });
+    mk("crop_tomato_2", 30, 32, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillEllipse(15, 18, 22, 18); g.fillStyle(0xd9443b, 1); g.fillCircle(11, 16, 5); g.fillCircle(19, 18, 5); });
+    mk("crop_tomato_3", 34, 36, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillEllipse(17, 20, 26, 20); g.fillStyle(0xd9443b, 1); g.fillCircle(11, 16, 6); g.fillCircle(22, 18, 6); g.fillCircle(17, 24, 5); });
+    mk("crop_strawberry_0", 20, 18, (g) => { g.fillStyle(0x5fad4a, 1); g.fillEllipse(10, 11, 12, 10); });
+    mk("crop_strawberry_1", 24, 26, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillEllipse(12, 14, 16, 14); g.fillStyle(0xe84a6a, 0.7); g.fillCircle(12, 15, 4); });
+    mk("crop_strawberry_2", 28, 30, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillEllipse(14, 16, 20, 16); g.fillStyle(0xe84a6a, 1); g.fillCircle(10, 15, 4); g.fillCircle(18, 16, 4); });
+    mk("crop_strawberry_3", 32, 34, (g) => { g.fillStyle(0x4f9b3a, 1); g.fillEllipse(16, 18, 24, 18); g.fillStyle(0xe84a6a, 1); g.fillCircle(11, 15, 5); g.fillCircle(21, 16, 5); g.fillCircle(16, 22, 5); g.fillStyle(0xfff3dc, 1); g.fillCircle(11, 14, 1); });
     mk("cow", 40, 32, (g) => {
+      g.fillStyle(0x000000, 0.15); g.fillEllipse(20, 28, 30, 8);
       g.fillStyle(0xf0e8d8, 1); g.fillRoundedRect(4, 10, 28, 16, 6);
       g.fillStyle(0x2a2218, 1); g.fillCircle(28, 12, 3); g.fillCircle(10, 12, 2);
       g.fillStyle(0xe8dcc8, 1); g.fillEllipse(32, 14, 10, 10);
