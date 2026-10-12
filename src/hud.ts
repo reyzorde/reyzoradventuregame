@@ -206,11 +206,27 @@ function shopHtml(h: HudSnapshot): string {
       <div class="sact"><button class="b" data-buy="${c}">Sotib olish</button>
       <button class="s" data-sell="${c}">Sotish ×${h.inventory[cfg.harvestItem] ?? 0}</button></div></div>`;
   }).join("");
-  return `<div class="modal hit"><div class="panel mcard wide"><div class="mh"><div><p class="eyebrow">Tomning do'koni</p><h2>Bozor</h2><p class="hint">Tangalar: ${h.coins}🪙</p></div>
-    <button class="xbtn" data-act="close-shop">✕</button></div>
-    ${rows}
-    ${upgradeCards(h)}
-    </div></div>`;
+  // Full-screen interior: static bg, no world movement — only buttons / dialogue
+  return `<div class="shop-interior hit" style="background-image:url('/art/shop_inner.jpg')">
+    <div class="shop-veil"></div>
+    <div class="shop-panel panel">
+      <div class="mh">
+        <div>
+          <p class="eyebrow">Tomning do'koni</p>
+          <h2>Bozor</h2>
+          <p class="hint">Tangalar: ${h.coins}🪙 · Harakat yo'q — tugmalar bilan ishlang</p>
+        </div>
+        <button class="xbtn" data-act="close-shop" title="Chiqish">✕ Chiqish</button>
+      </div>
+      <div class="shop-tom">
+        <span class="shop-tom-av">👨</span>
+        <p class="shop-tom-line">Tom: «Nima kerak — urug' yoki sotish?»</p>
+        <button class="btn-s" data-act="talk-tom">Tom bilan gaplashish</button>
+      </div>
+      <div class="shop-rows">${rows}</div>
+      ${upgradeCards(h)}
+    </div>
+  </div>`;
 }
 
 function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
@@ -226,6 +242,7 @@ function bind(el: HTMLElement, model: GameModel, h: HudSnapshot): void {
   on('[data-act="map"]', () => model.toggleMap());
   on('[data-act="toggle-quest"]', () => model.toggleQuestPanel());
   on('[data-act="close-shop"]', () => model.closeShop());
+  on('[data-act="talk-tom"]', () => { unlockAudio(); sfx("talk"); model.openDialogue([{ speaker: "Tom", text: "Xush kelibsiz! Urug' kerakmi, yoki hosilni sotmoqchimisiz?" }]); });
   on('[data-act="e"]', () => { model.interactQueued = true; });
   on('[data-act="jump"]', () => { model.jumpQueued = true; });
   el.querySelectorAll<HTMLElement>("[data-seed]").forEach((b) => {
