@@ -1,12 +1,8 @@
 import {
   CROP_CONFIGS,
-  INITIAL_COINS,
-  INITIAL_WATER,
-  INITIAL_WATER_MAX,
-  PLAYER_SPEED,
   QUEST_DEFS,
-  QUEST_ORDER,
-  UPGRADE_DEFS,
+  START_COINS,
+  WATER_MAX,
   upgradeValue,
 } from "../config";
 import { INITIAL_ANIMALS, INITIAL_PLOTS, PLAYER_SPAWN } from "../data/map";
@@ -16,12 +12,23 @@ import type {
   ItemId,
   Notice,
   PlotState,
+  QuestId,
   SaveData,
   UpgradeId,
 } from "../types";
 import { loadSave, saveSave, hasSave as hasSaveFile, clearSave } from "./SaveSystem";
 import { bus } from "./events";
 import { sfx } from "./AudioSystem";
+
+const QUEST_ORDER: QuestId[] = [
+  "clear_garden",
+  "first_seeds",
+  "need_water",
+  "first_harvest",
+  "help_village",
+  "enter_forest",
+  "gather_mushrooms",
+];
 
 export class GameModelBase {
   save: SaveData;
@@ -52,9 +59,9 @@ export class GameModelBase {
   private freshSave(): SaveData {
     return {
       version: 2,
-      coins: INITIAL_COINS,
-      water: INITIAL_WATER,
-      waterMax: INITIAL_WATER_MAX,
+      coins: START_COINS,
+      water: WATER_MAX,
+      waterMax: WATER_MAX,
       inventory: { carrot_seed: 3, tomato_seed: 1 },
       plots: INITIAL_PLOTS.map((p) => ({ ...p })),
       weedsCleared: [],
@@ -76,10 +83,9 @@ export class GameModelBase {
     if (!this.save.upgradeLevels) this.save.upgradeLevels = { water_cap: 0, move_speed: 0 };
     if (!this.save.audio) this.save.audio = { music: 0.35, sfx: 0.7 };
     if (!this.save.animals) this.save.animals = INITIAL_ANIMALS.map((a) => ({ ...a }));
-    // purge chickens from older saves
     this.save.animals = this.save.animals.filter((a) => a.kind !== "chicken");
     const wLv = this.save.upgradeLevels.water_cap ?? 0;
-    this.save.waterMax = upgradeValue("water_cap", wLv) || INITIAL_WATER_MAX;
+    this.save.waterMax = upgradeValue("water_cap", wLv) || WATER_MAX;
   }
 
   sub(fn: () => void): () => void {
@@ -211,7 +217,7 @@ export class GameModelBase {
 
   tick(dt: number): void {
     if (!this.playing) return;
-    this.save.time.minutes += dt / 1000 / 60 * 8; // 8x realtime day cycle
+    this.save.time.minutes += dt / 1000 / 60 * 8;
     if (this.save.time.minutes >= 24 * 60) {
       this.save.time.minutes -= 24 * 60;
       this.save.time.day += 1;
@@ -222,26 +228,15 @@ export class GameModelBase {
   }
 
   advanceQuest(id: string, amount = 1): void {
-    const def = QUEST_DEFS[id];
+    const def = QUEST_DEFS[id as QuestId];
     if (!def || this.save.quests.active !== id) return;
-    const cur = (this.save.quests.progress[id] ?? 0) + amount;
-    this.save.quests.progress[id] = cur;
+    const cur = (this.save.quests.progress[id as QuestId] ?? 0) + amount;
+    this.save.quests.progress[id as QuestId] = cur;
     if (cur >= def.target) {
-      this.save.quests.completed.push(id);
+      this.save.quests.completed.push(id as QuestId);
       sfx("quest");
       this.push(`Topshiriq: ${def.title}`);
-      if (def.reward) {
-        if (def.reward.coins) this.addCoins(def.reward.coins);
-        if (def.reward.unlockPlots) {
-          for (const pid of def.reward.unlockPlots) {
-            const pl = this.save.plots.find((x) => x.id === pid);
-            if (pl) pl.unlocked = true;
-          }
-          this.save.upgrades.smallGarden = true;
-        }
-        if (def.reward.forestOpen) this.save.upgrades.forestOpen = true;
-      }
-      const idx = QUEST_ORDER.indexOf(id as typeof QUEST_ORDER[number]);
+      const idx = QUEST_ORDER.indexOf(id as QuestId);
       const next = idx >= 0 ? QUEST_ORDER[idx + 1] : undefined;
       this.save.quests.active = next ?? null;
     }
