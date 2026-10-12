@@ -1,56 +1,122 @@
-import { CROP_CONFIGS, GAME_MINUTE_MS, QUEST_DEFS } from "../config";
-import { D } from "../data/dialogues";
-import type { CropId, DialogueLine, GameSave, ItemId, PlotState, QuestId } from "../types";
-import { sfx, startMusic } from "./AudioSystem";
+import {
+  CROP_CONFIGS,
+  INITIAL_COINS,
+  INITIAL_WATER,
+  INITIAL_WATER_MAX,
+  PLAYER_SPEED,
+  QUEST_DEFS,
+  QUEST_ORDER,
+  UPGRADE_DEFS,
+  upgradeValue,
+} from "../config";
+import { INITIAL_ANIMALS, INITIAL_PLOTS, PLAYER_SPAWN } from "../data/map";
+import type {
+  CropId,
+  DialogueLine,
+  ItemId,
+  Notice,
+  PlotState,
+  SaveData,
+  UpgradeId,
+} from "../types";
+import { loadSave, saveSave, hasSave as hasSaveFile, clearSave } from "./SaveSystem";
 import { bus } from "./events";
-import { clearSave, createNewSave, hasSave, loadSave, writeSave } from "./SaveSystem";
-
-let nid = 0;
+import { sfx } from "./AudioSystem";
 
 export class GameModelBase {
-  save: GameSave;
-  selectedSeed: CropId | null = "carrot";
-  notices: { id: string; text: string }[] = [];
+  save: SaveData;
+  playing = false;
+  menu: "main" | "confirm_new" | "play" = "main";
+  selectedSeed: CropId = "carrot";
+  interactHint: string | null = null;
+  notices: Notice[] = [];
   dialogue: DialogueLine[] = [];
-  dialogueIndex = 0;
+  dialogueIdx = 0;
+  dialogueCb: (() => void) | null = null;
   shopOpen = false;
   inventoryOpen = false;
   mapOpen = false;
   questCollapsed = false;
-  menu: "main" | "confirm_new" | "none" = "main";
-  playing = false;
-  interactHint: string | null = null;
-  injectedKeys = new Set<string>();
-  joystick = { x: 0, y: 0 };
-  lastSaveAt = 0;
-  afterDialogue: (() => void) | null = null;
   interactQueued = false;
   jumpQueued = false;
-  listeners = new Set<() => void>();
+  joystick = { x: 0, y: 0 };
+  injectedKeys = new Set<string>();
+  private subs = new Set<() => void>();
+  private noticeId = 0;
 
   constructor() {
-    this.save = loadSave() ?? createNewSave();
+    this.save = loadSave() ?? this.freshSave();
+    this.migrate();
+  }
+
+  private freshSave(): SaveData {
+    return {
+      version: 2,
+      coins: INITIAL_COINS,
+      water: INITIAL_WATER,
+      waterMax: INITIAL_WATER_MAX,
+      inventory: { carrot_seed: 3, tomato_seed: 1 },
+      plots: INITIAL_PLOTS.map((p) => ({ ...p })),
+      weedsCleared: [],
+      pickupsTaken: [],
+      animals: INITIAL_ANIMALS.map((a) => ({ ...a })),
+      player: { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y, facing: "down" },
+      time: { day: 1, minutes: 8 * 60 },
+      tutorialStep: 0,
+      miraIntroDone: false,
+      miraCarrotsGiven: false,
+      quests: { active: "clear_garden", progress: {}, completed: [] },
+      upgrades: { smallGarden: false, forestOpen: false },
+      upgradeLevels: { water_cap: 0, move_speed: 0 },
+      audio: { music: 0.35, sfx: 0.7 },
+    };
+  }
+
+  private migrate(): void {
+    if (!this.save.upgradeLevels) this.save.upgradeLevels = { water_cap: 0, move_speed: 0 };
+    if (!this.save.audio) this.save.audio = { music: 0.35, sfx: 0.7 };
+    if (!this.save.animals) this.save.animals = INITIAL_ANIMALS.map((a) => ({ ...a }));
+    // purge chickens from older saves
+    this.save.animals = this.save.animals.filter((a) => a.kind !== "chicken");
+    const wLv = this.save.upgradeLevels.water_cap ?? 0;
+    this.save.waterMax = upgradeValue("water_cap", wLv) || INITIAL_WATER_MAX;
   }
 
   sub(fn: () => void): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
+    this.subs.add(fn);
+    return () => this.subs.delete(fn);
   }
 
-  emit(): void {
-    for (const fn of this.listeners) fn();
-    bus.emit("hud");
+  protected emit(): void {
+    for (const fn of this.subs) fn();
   }
 
-  hasSave(): boolean { return hasSave(); }
+  persist(): void {
+    saveSave(this.save);
+  }
+
+  hasSave(): boolean {
+    return hasSaveFile();
+  }
 
   requestNewGame(): void {
-    if (hasSave()) {
-      this.menu = "confirm_new";
-      this.emit();
-      return;
-    }
-    this.startFreshGame();
+    if (this.hasSave()) this.menu = "confirm_new";
+    else this.confirmNewGame();
+    this.emit();
+  }
+
+  confirmNewGame(): void {
+    clearSave();
+    this.save = this.freshSave();
+    this.playing = true;
+    this.menu = "play";
+    this.shopOpen = false;
+    this.inventoryOpen = false;
+    this.mapOpen = false;
+    this.dialogue = [];
+    this.persist();
+    bus.emit("playing", true);
+    this.emit();
   }
 
   cancelNewGame(): void {
@@ -58,51 +124,12 @@ export class GameModelBase {
     this.emit();
   }
 
-  confirmNewGame(): void {
-    this.startFreshGame();
-  }
-
-  protected startFreshGame(): void {
-    clearSave();
-    this.save = createNewSave();
-    this.selectedSeed = "carrot";
-    this.notices = [];
-    this.dialogue = [];
-    this.dialogueIndex = 0;
-    this.afterDialogue = null;
-    this.shopOpen = false;
-    this.inventoryOpen = false;
-    this.menu = "none";
-    this.playing = true;
-    startMusic();
-    this.push("Boboning bog'iga xush kelibsiz.");
-    this.persist();
-    bus.emit("playing", true);
-    bus.emit("menu", "none");
-    this.emit();
-  }
-
-  newGame(): void {
-    this.requestNewGame();
-  }
-
   continueGame(): void {
-    const loaded = loadSave();
-    if (!loaded) {
-      this.startFreshGame();
-      return;
-    }
-    this.save = loaded;
-    this.menu = "none";
+    this.save = loadSave() ?? this.freshSave();
+    this.migrate();
     this.playing = true;
-    this.shopOpen = false;
-    this.inventoryOpen = false;
-    this.mapOpen = false;
-    this.dialogue = [];
-    this.dialogueIndex = 0;
-    startMusic();
+    this.menu = "play";
     bus.emit("playing", true);
-    bus.emit("menu", "none");
     this.emit();
   }
 
@@ -110,48 +137,22 @@ export class GameModelBase {
     this.persist();
     this.playing = false;
     this.menu = "main";
+    this.shopOpen = false;
+    this.inventoryOpen = false;
+    this.mapOpen = false;
+    this.dialogue = [];
     bus.emit("playing", false);
-    bus.emit("menu", "main");
     this.emit();
   }
 
-  persist(): void {
-    writeSave(this.save);
-    this.lastSaveAt = performance.now();
-  }
-
-  tick(dt: number): void {
-    if (!this.playing) return;
-    this.save.time.minutes += dt / GAME_MINUTE_MS;
-    while (this.save.time.minutes >= 24 * 60) {
-      this.save.time.minutes -= 24 * 60;
-      this.save.time.day += 1;
-    }
-    this.updateCrops();
-    if (performance.now() - this.lastSaveAt > 4000) this.persist();
-  }
-
-  updateCrops(): void {
-    const now = Date.now();
-    for (const p of this.save.plots) {
-      if (!p.unlocked || !p.cropId || p.wateredAt == null || p.state === "READY") continue;
-      const cfg = CROP_CONFIGS[p.cropId];
-      const e = now - p.wateredAt;
-      if (e >= cfg.growthMs) p.state = "READY";
-      else if (e >= cfg.growthMs * 0.35) p.state = "GROWING";
-      else p.state = "WATERED";
-    }
-  }
-
-  growthPhase(p: PlotState): number {
-    if (!p.cropId || p.plantedAt == null) return -1;
-    if (p.state === "PLANTED" || p.state === "WATERED") return 0;
-    if (p.state === "READY") return 3;
-    if (p.state === "GROWING" && p.wateredAt != null) {
-      const t = (Date.now() - p.wateredAt) / CROP_CONFIGS[p.cropId].growthMs;
-      return t > 0.7 ? 2 : 1;
-    }
-    return 0;
+  push(text: string): void {
+    const id = ++this.noticeId;
+    this.notices = [...this.notices.filter((n) => n.id > id - 4), { id, text }];
+    this.emit();
+    window.setTimeout(() => {
+      this.notices = this.notices.filter((n) => n.id !== id);
+      this.emit();
+    }, 2800);
   }
 
   addItem(id: ItemId, n: number): void {
@@ -159,109 +160,111 @@ export class GameModelBase {
   }
 
   addCoins(n: number): void {
-    this.save.coins = Math.max(0, this.save.coins + n);
-    if (n > 0) { this.push(`+${n} tanga`); sfx("coin"); }
+    this.save.coins += n;
+    if (n > 0) sfx("coin");
   }
 
-  push(text: string): void {
-    const id = `n${++nid}`;
-    this.notices = [...this.notices.slice(-4), { id, text }];
-    bus.emit("notice", { text });
-    window.setTimeout(() => {
-      this.notices = this.notices.filter((n) => n.id !== id);
-      this.emit();
-    }, 2600);
-    this.emit();
-  }
-
-  openDialogue(lines: DialogueLine[], after?: () => void): void {
+  openDialogue(lines: DialogueLine[], cb?: () => void): void {
     this.dialogue = lines;
-    this.dialogueIndex = 0;
-    this.afterDialogue = after ?? null;
-    this.shopOpen = false;
+    this.dialogueIdx = 0;
+    this.dialogueCb = cb ?? null;
     sfx("talk");
     this.emit();
   }
 
   currentDialogue(): DialogueLine | null {
-    return this.dialogue[this.dialogueIndex] ?? null;
+    return this.dialogue[this.dialogueIdx] ?? null;
   }
 
   advanceDialogue(): void {
     if (!this.dialogue.length) return;
-    this.dialogueIndex += 1;
-    if (this.dialogueIndex >= this.dialogue.length) {
+    this.dialogueIdx++;
+    if (this.dialogueIdx >= this.dialogue.length) {
       this.dialogue = [];
-      const a = this.afterDialogue;
-      this.afterDialogue = null;
-      a?.();
+      this.dialogueIdx = 0;
+      const cb = this.dialogueCb;
+      this.dialogueCb = null;
+      cb?.();
     }
     this.emit();
   }
 
-  advanceQuest(id: QuestId, amount = 1): void {
-    if (this.save.quests.active !== id || this.save.quests.completed.includes(id)) return;
-    const def = QUEST_DEFS[id];
-    this.save.quests.progress[id] = Math.min(def.target, (this.save.quests.progress[id] ?? 0) + amount);
-    if ((this.save.quests.progress[id] ?? 0) >= def.target) this.completeQuest(id);
-    this.emit();
+  growthPhase(p: PlotState): number {
+    if (!p.cropId || p.state === "EMPTY" || p.state === "TILLED") return -1;
+    if (p.state === "PLANTED") return 0;
+    if (p.state === "READY") return 3;
+    if (p.wateredAt == null) return 0;
+    const cfg = CROP_CONFIGS[p.cropId];
+    const elapsed = Date.now() - p.wateredAt;
+    const t = elapsed / cfg.growthMs;
+    if (t >= 1) {
+      if (p.state !== "READY") {
+        p.state = "READY";
+        this.persist();
+      }
+      return 3;
+    }
+    if (t >= 0.66) return 2;
+    if (t >= 0.33) return 1;
+    return 0;
   }
 
-  completeQuest(id: QuestId): void {
-    if (this.save.quests.completed.includes(id)) return;
-    this.save.quests.completed.push(id);
+  tick(dt: number): void {
+    if (!this.playing) return;
+    this.save.time.minutes += dt / 1000 / 60 * 8; // 8x realtime day cycle
+    if (this.save.time.minutes >= 24 * 60) {
+      this.save.time.minutes -= 24 * 60;
+      this.save.time.day += 1;
+    }
+    for (const p of this.save.plots) {
+      if (p.state === "WATERED" || p.state === "GROWING") this.growthPhase(p);
+    }
+  }
+
+  advanceQuest(id: string, amount = 1): void {
     const def = QUEST_DEFS[id];
-    if (id === "clear_garden" || id === "need_water") this.addCoins(20);
-    if (id === "first_seeds") { this.addItem("carrot_seed", 10); this.push("10 sabzi urug'i olindi"); }
-    if (id === "first_harvest") this.addCoins(50);
-    if (id === "help_village") this.applyUpgrade();
-    if (id === "enter_forest") {
-      this.save.upgrades.forestOpen = true;
-      this.push("O'rmon yo'li ochildi!");
+    if (!def || this.save.quests.active !== id) return;
+    const cur = (this.save.quests.progress[id] ?? 0) + amount;
+    this.save.quests.progress[id] = cur;
+    if (cur >= def.target) {
+      this.save.quests.completed.push(id);
+      sfx("quest");
+      this.push(`Topshiriq: ${def.title}`);
+      if (def.reward) {
+        if (def.reward.coins) this.addCoins(def.reward.coins);
+        if (def.reward.unlockPlots) {
+          for (const pid of def.reward.unlockPlots) {
+            const pl = this.save.plots.find((x) => x.id === pid);
+            if (pl) pl.unlocked = true;
+          }
+          this.save.upgrades.smallGarden = true;
+        }
+        if (def.reward.forestOpen) this.save.upgrades.forestOpen = true;
+      }
+      const idx = QUEST_ORDER.indexOf(id as typeof QUEST_ORDER[number]);
+      const next = idx >= 0 ? QUEST_ORDER[idx + 1] : undefined;
+      this.save.quests.active = next ?? null;
     }
-    if (id === "gather_mushrooms") {
-      this.addCoins(40);
-      this.addItem("wood", 2);
-      this.push("2 ta yog'och olindi");
-    }
-    sfx("quest");
-    this.push(`Topshiriq bajarildi: ${def.title}`);
-    this.save.quests.active = def.next;
     this.persist();
-  }
-
-  applyUpgrade(): void {
-    this.save.upgrades.smallGarden = true;
-    for (const p of this.save.plots) p.unlocked = true;
-    this.push("Kichik bog' yangilandi — 3 ta yangi yer ochildi!");
-  }
-
-  openForestGate(): void {
-    if (this.save.upgrades.forestOpen) {
-      this.openDialogue(D.gate_open);
-      return;
-    }
-    if (this.save.upgrades.smallGarden) {
-      this.save.upgrades.forestOpen = true;
-      this.advanceQuest("enter_forest");
-      this.openDialogue(D.gate_open, () => {
-        this.push("Darvoza ochildi — sharqqa boring");
-      });
-      this.persist();
-      return;
-    }
-    this.openDialogue(D.gate_locked);
+    this.emit();
   }
 
   takeMushroom(id: string): boolean {
     if (this.save.pickupsTaken.includes(id)) return false;
     this.save.pickupsTaken.push(id);
     this.addItem("mushroom", 1);
-    sfx("harvest");
-    this.push("Qo'ziqorin olindi");
     this.advanceQuest("gather_mushrooms");
     this.persist();
     this.emit();
     return true;
+  }
+
+  openForestGate(): void {
+    if (this.save.upgrades.forestOpen) {
+      this.openDialogue([{ speaker: "", text: "Darvoza ochiq. O'rmon yo'li oldinda." }]);
+      this.advanceQuest("enter_forest");
+      return;
+    }
+    this.openDialogue([{ speaker: "", text: "Bu yo'l hozircha yopiq. Avval Miraga yordam bering." }]);
   }
 }
