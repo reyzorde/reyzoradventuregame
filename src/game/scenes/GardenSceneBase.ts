@@ -31,6 +31,9 @@ export class GardenSceneBase extends Phaser.Scene {
   protected animals: Phaser.Physics.Arcade.Sprite[] = [];
   protected waterFx: Phaser.GameObjects.TileSprite | null = null;
   protected boundCd = 0;
+  /** Gate collision zone — removed when forest is unlocked */
+  protected gateBlocker: Phaser.GameObjects.Zone | null = null;
+  protected gateSprite: Phaser.GameObjects.Image | null = null;
 
   constructor() { super("garden"); }
 
@@ -38,6 +41,7 @@ export class GardenSceneBase extends Phaser.Scene {
     this.crops.clear(); this.weeds.clear(); this.pickups.clear();
     this.npcs = {}; this.decor = []; this.speed = 0; this.facing = "down";
     this.lastHint = ""; this.panT = 0;
+    this.gateBlocker = null; this.gateSprite = null;
     (this as unknown as { forestSpawned?: boolean }).forestSpawned = false;
   }
 
@@ -132,6 +136,26 @@ export class GardenSceneBase extends Phaser.Scene {
     const s = this.add.image(x, footY, key).setOrigin(0.5, 1).setDepth(footY);
     if (o.kind === "shop") s.setScale(1.35);
     if (o.kind === "house" || o.kind === "barn") s.setScale(1.1);
+    // Gate: always draw sprite; collision only while locked
+    if (o.kind === "gate") {
+      this.gateSprite = s;
+      if (this.model.save.upgrades.forestOpen) {
+        s.setAlpha(0.88);
+        s.setTint(0xc8e8c0);
+      } else if (o.collide) {
+        const b = o.body ?? { ox: 8, oy: 32, w: 72, h: 28 };
+        const z = this.add.zone(
+          x - s.displayWidth / 2 + b.ox + b.w / 2,
+          footY - s.displayHeight + b.oy + b.h / 2,
+          b.w,
+          b.h,
+        );
+        this.physics.add.existing(z, true);
+        this.blockers.add(z);
+        this.gateBlocker = z;
+      }
+      return;
+    }
     if (o.collide) {
       const b = o.body ?? { ox: 20, oy: 50, w: 40, h: 20 };
       const scale = s.scaleX;
@@ -143,6 +167,18 @@ export class GardenSceneBase extends Phaser.Scene {
       );
       this.physics.add.existing(z, true);
       this.blockers.add(z);
+    }
+  }
+
+  /** Remove gate collision and show open visual (call when forest unlocks) */
+  protected openGatePassage(): void {
+    if (this.gateBlocker) {
+      this.gateBlocker.destroy();
+      this.gateBlocker = null;
+    }
+    if (this.gateSprite) {
+      this.gateSprite.setAlpha(0.88);
+      this.gateSprite.setTint(0xc8e8c0);
     }
   }
 
@@ -244,9 +280,13 @@ export class GardenSceneBase extends Phaser.Scene {
   protected setupInput(): void {
     this.keys = {} as Record<string, Phaser.Input.Keyboard.Key>;
     if (!this.input.keyboard) return;
-    this.keys = this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ESC,I,ONE,TWO,THREE") as Record<string, Phaser.Input.Keyboard.Key>;
+    this.keys = this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,SHIFT,ESC,I,ONE,TWO,THREE") as Record<string, Phaser.Input.Keyboard.Key>;
     this.input.keyboard.on("keydown-E", () => this.tryInteract());
-    this.input.keyboard.on("keydown-SPACE", () => { if (this.model.dialogue.length) this.model.advanceDialogue(); else this.tryInteract(); });
+    this.input.keyboard.on("keydown-SPACE", () => {
+      if (this.model.dialogue.length) this.model.advanceDialogue();
+      else this.model.jumpQueued = true;
+    });
+    this.input.keyboard.on("keydown-SHIFT", () => { this.model.jumpQueued = true; });
     this.input.keyboard.on("keydown-ESC", () => {
       if (this.model.shopOpen) this.model.closeShop();
       else if (this.model.dialogue.length) this.model.advanceDialogue();
