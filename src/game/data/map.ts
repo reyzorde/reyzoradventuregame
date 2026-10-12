@@ -146,7 +146,13 @@ const BUSH_SPOTS: [number, number][] = [
   [35, 32], [45, 30], [8, 25], [29, 28],
 ];
 BUSH_SPOTS.forEach(([tx, ty], i) => {
-  OBJECTS.push({ id: `bush-${i}`, kind: "bush", tx, ty, collide: true, variant: i % 3, body: { ox: 8, oy: 16, w: 20, h: 12 } });
+  OBJECTS.push({ id: `bush-${i}`, kind: i % 3, variant: i % 3, body: { ox: 8, oy: 16, w: 20, h: 12 } } as WorldObj);
+});
+
+// Fix bush kind
+BUSH_SPOTS.forEach(([tx, ty], i) => {
+  const idx = OBJECTS.findIndex((o) => o.id === `bush-${i}`);
+  if (idx >= 0) OBJECTS[idx] = { id: `bush-${i}`, kind: "bush", tx, ty, collide: true, variant: i % 3, body: { ox: 8, oy: 16, w: 20, h: 12 } };
 });
 
 (
