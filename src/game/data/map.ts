@@ -122,7 +122,7 @@ export interface WorldObj {
 
 export const OBJECTS: WorldObj[] = [
   { id: "house", kind: "house", tx: 9, ty: 11, collide: true, interact: true, body: { ox: 24, oy: 70, w: 100, h: 36 } },
-  { id: "barn", kind: "barn", tx: 13, ty: 18, collide: true, interact: true, body: { ox: 22, oy: 90, w: 100, h: 30 } },
+  { id: "barn", kind: "barn", tx: 13, ty: 18, collide: true,, interact: true, body: { ox: 22, oy: 90, w: 100, h: 30 } },
   { id: "well", kind: "well", tx: 26, ty: 17, collide: true, interact: true, body: { ox: 16, oy: 48, w: 36, h: 24 } },
   { id: "shop", kind: "shop", tx: 44, ty: 17, collide: true, interact: true, body: { ox: 18, oy: 56, w: 96, h: 32 } },
   { id: "gate", kind: "gate", tx: 56, ty: 11, collide: true, interact: true, body: { ox: 8, oy: 32, w: 72, h: 28 } },
@@ -146,13 +146,15 @@ const BUSH_SPOTS: [number, number][] = [
   [35, 32], [45, 30], [8, 25], [29, 28],
 ];
 BUSH_SPOTS.forEach(([tx, ty], i) => {
-  OBJECTS.push({ id: `bush-${i}`, kind: i % 3, variant: i % 3, body: { ox: 8, oy: 16, w: 20, h: 12 } } as WorldObj);
-});
-
-// Fix bush kind
-BUSH_SPOTS.forEach(([tx, ty], i) => {
-  const idx = OBJECTS.findIndex((o) => o.id === `bush-${i}`);
-  if (idx >= 0) OBJECTS[idx] = { id: `bush-${i}`, kind: "bush", tx, ty, collide: true, variant: i % 3, body: { ox: 8, oy: 16, w: 20, h: 12 } };
+  OBJECTS.push({
+    id: `bush-${i}`,
+    kind: "bush",
+    tx,
+    ty,
+    collide: true,
+    variant: i % 3,
+    body: { ox: 8, oy: 16, w: 20, h: 12 },
+  });
 });
 
 (
