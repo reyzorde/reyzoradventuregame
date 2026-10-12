@@ -122,7 +122,7 @@ export interface WorldObj {
 
 export const OBJECTS: WorldObj[] = [
   { id: "house", kind: "house", tx: 9, ty: 11, collide: true, interact: true, body: { ox: 24, oy: 70, w: 100, h: 36 } },
-  { id: "barn", kind: "barn", tx: 13, ty: 18, collide: true,, interact: true, body: { ox: 22, oy: 90, w: 100, h: 30 } },
+  { id: "barn", kind: "barn", tx: 13, ty: 18, collide: true, interact: true, body: { ox: 22, oy: 90, w: 100, h: 30 } },
   { id: "well", kind: "well", tx: 26, ty: 17, collide: true, interact: true, body: { ox: 16, oy: 48, w: 36, h: 24 } },
   { id: "shop", kind: "shop", tx: 44, ty: 17, collide: true, interact: true, body: { ox: 18, oy: 56, w: 96, h: 32 } },
   { id: "gate", kind: "gate", tx: 56, ty: 11, collide: true, interact: true, body: { ox: 8, oy: 32, w: 72, h: 28 } },
@@ -166,7 +166,7 @@ BUSH_SPOTS.forEach(([tx, ty], i) => {
 
 OBJECTS.push(
   { id: "rock-1", kind: "rock", tx: 32, ty: 28, interact: true },
-  { id: "rock-2", kind: "rock", tx: 52, ty: 24, interact: true },
+  { id: "rock-2", kind: "rock", tx: 2, ty: 24, interact: true },
   { id: "rock-3", kind: "rock", tx: 14, ty: 34, interact: true },
   { id: "log-1", kind: "log", tx: 8, ty: 32, interact: true },
   { id: "log-2", kind: "log", tx: 58, ty: 28, interact: true },
