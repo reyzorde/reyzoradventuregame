@@ -55,9 +55,8 @@ export class GardenScene extends GardenSceneBase {
     const vx = body?.velocity.x ?? 0;
     const vy = body?.velocity.y ?? 0;
     const len = Math.hypot(vx, vy);
-    if (len > 20) {
-      this.hopDir = { x: vx / len, y: vy / len };
-    } else {
+    if (len > 20) this.hopDir = { x: vx / len, y: vy / len };
+    else {
       const f = this.facing;
       this.hopDir = f === "left" ? { x: -1, y: 0 } : f === "right" ? { x: 1, y: 0 } : f === "up" ? { x: 0, y: -1 } : { x: 0, y: 1 };
     }
@@ -68,7 +67,7 @@ export class GardenScene extends GardenSceneBase {
         speed: { min: 30, max: 70 }, lifespan: 280, scale: { start: 0.5, end: 0 }, quantity: 6, tint: 0xc4a06a, emitting: false,
       });
       p.explode(6);
-      this.time.delayedCall(400, () => p.destroy());
+      this.time.delayedCall(400, () => { try { p.destroy(); } catch { /* */ } });
     }
   }
 
@@ -80,16 +79,7 @@ export class GardenScene extends GardenSceneBase {
     if (body) body.setVelocity(this.hopDir.x * 260, this.hopDir.y * 260);
     const t = 1 - Math.abs(this.hopT - 140) / 140;
     this.player.setScale(1 - t * 0.06, 1 + t * 0.12);
-    if (this.hopT <= 0) {
-      this.player.setScale(1, 1);
-      if (this.textures.exists("spark")) {
-        const p = this.add.particles(this.player.x, this.player.y + 8, "spark", {
-          speed: { min: 20, max: 50 }, lifespan: 220, scale: { start: 0.4, end: 0 }, quantity: 4, tint: 0xb89a6a, emitting: false,
-        });
-        p.explode(4);
-        this.time.delayedCall(300, () => p.destroy());
-      }
-    }
+    if (this.hopT <= 0) this.player.setScale(1, 1);
   }
 
   protected syncShadow(): void {
@@ -115,63 +105,84 @@ export class GardenScene extends GardenSceneBase {
     } else if (!inF && this.inForest) {
       this.inForest = false;
       this.cameras.main.fadeIn(350, 0, 0, 0);
-      this.leafFx?.stop();
+      this.destroyEmitter(this.leafFx);
       this.leafFx = null;
     }
   }
 
   protected spawnLeafFx(): void {
     if (!this.textures.exists("leaf") || this.leafFx) return;
-    this.leafFx = this.add.particles(this.player.x, this.player.y - 40, "leaf", {
-      x: { min: -220, max: 260 }, y: { min: -140, max: 100 },
-      speedY: { min: 14, max: 40 }, speedX: { min: -24, max: 12 },
-      lifespan: 2800, scale: { start: 0.75, end: 0.15 }, alpha: { start: 0.65, end: 0 },
-      frequency: 160, quantity: 1, rotate: { min: 0, max: 360 }, advance: 200,
-    });
-    this.leafFx.setDepth(900);
-    this.time.addEvent({
-      delay: 300, loop: true,
-      callback: () => { if (!this.leafFx || !this.inForest) return; this.leafFx.setPosition(this.player.x, this.player.y - 40); },
-    });
+    try {
+      this.leafFx = this.add.particles(this.player.x, this.player.y - 40, "leaf", {
+        x: { min: -220, max: 260 }, y: { min: -140, max: 100 },
+        speedY: { min: 14, max: 40 }, speedX: { min: -24, max: 12 },
+        lifespan: 2800, scale: { start: 0.75, end: 0.15 }, alpha: { start: 0.65, end: 0 },
+        frequency: 160, quantity: 1, rotate: { min: 0, max: 360 },
+      });
+      this.leafFx.setDepth(900);
+    } catch {
+      this.leafFx = null;
+    }
   }
 
+  private destroyEmitter(em: Phaser.GameObjects.Particles.ParticleEmitter | null): void {
+    if (!em) return;
+    try { em.stop(); em.destroy(); } catch { /* already gone */ }
+  }
+
+  /** Null-safe ambient particles (pollen / fireflies / dust) */
   protected updateAmbient(dt: number): void {
-    if (!this.pollenFx && this.textures.exists("pollen")) {
-      this.pollenFx = this.add.particles(0, 0, "pollen", {
-        x: { min: -180, max: 180 }, y: { min: -100, max: 80 },
-        speedX: { min: -8, max: 12 }, speedY: { min: -6, max: 4 },
-        lifespan: 3200, scale: { start: 0.55, end: 0.1 }, alpha: { start: 0.45, end: 0 },
-        frequency: 280, quantity: 1, blendMode: "ADD",
-      });
-      this.pollenFx.setDepth(50);
-    }
-    if (this.pollenFx) {
-      this.pollenFx.setPosition(this.player.x, this.player.y - 20);
-      this.pollenFx.setFrequency(this.inForest ? 600 : 280);
-    }
-    const mins = this.model.save.time.minutes % (24 * 60);
-    const night = mins < 6 * 60 || mins >= 19 * 60;
-    if (night && !this.fireflyFx && this.textures.exists("firefly")) {
-      this.fireflyFx = this.add.particles(0, 0, "firefly", {
-        x: { min: -200, max: 200 }, y: { min: -120, max: 60 },
-        speedX: { min: -18, max: 18 }, speedY: { min: -12, max: 12 },
-        lifespan: 2400, scale: { start: 0.7, end: 0.15 }, alpha: { start: 0.85, end: 0 },
-        frequency: 220, quantity: 1, blendMode: "ADD",
-      });
-      this.fireflyFx.setDepth(120);
-    }
-    if (this.fireflyFx) {
-      this.fireflyFx.setPosition(this.player.x, this.player.y - 30);
-      if (!night) { this.fireflyFx.stop(); this.fireflyFx = null; }
-    }
-    this.dustCd -= dt;
-    if (this.dustCd <= 0 && this.speed > 40 && this.hopT <= 0 && this.textures.exists("spark")) {
-      this.dustCd = 180;
-      const p = this.add.particles(this.player.x, this.player.y + 8, "spark", {
-        speed: { min: 8, max: 22 }, lifespan: 200, scale: { start: 0.28, end: 0 }, quantity: 2, tint: 0xc4a06a, emitting: false,
-      });
-      p.explode(2);
-      this.time.delayedCall(250, () => p.destroy());
+    try {
+      if (!this.pollenFx && this.textures.exists("pollen")) {
+        this.pollenFx = this.add.particles(this.player.x, this.player.y - 20, "pollen", {
+          x: { min: -180, max: 180 }, y: { min: -100, max: 80 },
+          speedX: { min: -8, max: 12 }, speedY: { min: -6, max: 4 },
+          lifespan: 3200, scale: { start: 0.55, end: 0.1 }, alpha: { start: 0.45, end: 0 },
+          frequency: 280, quantity: 1,
+        });
+        this.pollenFx.setDepth(50);
+      }
+      if (this.pollenFx && this.pollenFx.active) {
+        this.pollenFx.setPosition(this.player.x, this.player.y - 20);
+        (this.pollenFx as { frequency?: number }).frequency = this.inForest ? 600 : 280;
+      }
+
+      const mins = this.model.save.time.minutes % (24 * 60);
+      const night = mins < 6 * 60 || mins >= 19 * 60;
+      if (night && !this.fireflyFx && this.textures.exists("firefly")) {
+        this.fireflyFx = this.add.particles(this.player.x, this.player.y - 30, "firefly", {
+          x: { min: -200, max: 200 }, y: { min: -120, max: 60 },
+          speedX: { min: -18, max: 18 }, speedY: { min: -12, max: 12 },
+          lifespan: 2400, scale: { start: 0.7, end: 0.15 }, alpha: { start: 0.85, end: 0 },
+          frequency: 220, quantity: 1,
+        });
+        this.fireflyFx.setDepth(120);
+      }
+      if (this.fireflyFx) {
+        if (!night) {
+          this.destroyEmitter(this.fireflyFx);
+          this.fireflyFx = null;
+        } else if (this.fireflyFx.active) {
+          this.fireflyFx.setPosition(this.player.x, this.player.y - 30);
+        }
+      }
+
+      if (this.leafFx && this.inForest && this.leafFx.active) {
+        this.leafFx.setPosition(this.player.x, this.player.y - 40);
+      }
+
+      this.dustCd -= dt;
+      if (this.dustCd <= 0 && this.speed > 40 && this.hopT <= 0 && this.textures.exists("spark")) {
+        this.dustCd = 180;
+        const p = this.add.particles(this.player.x, this.player.y + 8, "spark", {
+          speed: { min: 8, max: 22 }, lifespan: 200, scale: { start: 0.28, end: 0 },
+          quantity: 2, tint: 0xc4a06a, emitting: false,
+        });
+        p.explode(2);
+        this.time.delayedCall(250, () => { try { p.destroy(); } catch { /* */ } });
+      }
+    } catch {
+      /* particle system not ready */
     }
   }
 
@@ -324,14 +335,11 @@ export class GardenScene extends GardenSceneBase {
       this.decor.push(this.add.image(pos.x, pos.y, "sign").setDepth(pos.y));
       this.popup(pos.x, pos.y - 30, "Bog' yangilandi!");
     }
-    // Spawn forest objects once unlocked + open gate passage
     if (this.model.save.upgrades.forestOpen && !(this as unknown as { forestSpawned?: boolean }).forestSpawned) {
       (this as unknown as { forestSpawned?: boolean }).forestSpawned = true;
       this.openGatePassage();
       for (const o of OBJECTS) {
-        if (o.id.startsWith("ftree-") || o.id === "forest-sign" || o.kind === "mushroom") {
-          this.place(o);
-        }
+        if (o.id.startsWith("ftree-") || o.id === "forest-sign" || o.kind === "mushroom") this.place(o);
       }
       this.cameras.main.flash(500, 40, 80, 40);
       const gate = OBJECTS.find((o) => o.id === "gate");
@@ -342,7 +350,7 @@ export class GardenScene extends GardenSceneBase {
           quantity: 18, rotate: { min: 0, max: 360 }, emitting: false,
         });
         p.explode(18);
-        this.time.delayedCall(1000, () => p.destroy());
+        this.time.delayedCall(1000, () => { try { p.destroy(); } catch { /* */ } });
         this.popup(gp.x, gp.y - 40, "O'rmon ochildi!");
       }
     }
@@ -354,7 +362,7 @@ export class GardenScene extends GardenSceneBase {
         if (!p.unlocked) this.layer.putTileAt(T.Dirt, p.col, p.row);
         else if (p.state === "WATERED" || p.state === "GROWING" || p.state === "READY") this.layer.putTileAt(T.SoilWet, p.col, p.row);
         else this.layer.putTileAt(T.Soil, p.col, p.row);
-      } catch { /* tileset not ready */ }
+      } catch { /* */ }
     }
     if (!p.unlocked) { this.crops.get(p.id)?.setVisible(false); return; }
     const c = this.crops.get(p.id);
@@ -393,13 +401,13 @@ export class GardenScene extends GardenSceneBase {
   protected burst(x: number, y: number, tint: number): void {
     const p = this.add.particles(x, y, "spark", { speed: { min: 20, max: 70 }, lifespan: 420, scale: { start: 0.8, end: 0 }, quantity: 8, tint, emitting: false });
     p.explode(8);
-    this.time.delayedCall(500, () => p.destroy());
+    this.time.delayedCall(500, () => { try { p.destroy(); } catch { /* */ } });
   }
 
   protected splash(x: number, y: number): void {
     const p = this.add.particles(x, y, "droplet", { speed: { min: 30, max: 80 }, lifespan: 500, scale: { start: 0.9, end: 0.1 }, gravityY: 120, quantity: 10, emitting: false });
     p.explode(10);
-    this.time.delayedCall(600, () => p.destroy());
+    this.time.delayedCall(600, () => { try { p.destroy(); } catch { /* */ } });
   }
 
   protected popup(x: number, y: number, text: string): void {
@@ -408,6 +416,9 @@ export class GardenScene extends GardenSceneBase {
   }
 
   protected cleanup(): void {
+    this.destroyEmitter(this.leafFx); this.leafFx = null;
+    this.destroyEmitter(this.pollenFx); this.pollenFx = null;
+    this.destroyEmitter(this.fireflyFx); this.fireflyFx = null;
     this.unsub?.(); this.unsub = null;
     this.scale.off("resize", this.onResize, this);
     this.input.keyboard?.removeAllListeners();
