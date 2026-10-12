@@ -1,4 +1,3 @@
-
 import type { DialogueLine } from "../types";
 
 export const D: Record<string, DialogueLine[]> = {
@@ -18,7 +17,10 @@ export const D: Record<string, DialogueLine[]> = {
     { speaker: "Mira", text: "O'rmonga kirdingizmi? Qo'ziqorinlar daraxt ildizi yonida o'sadi." },
     { speaker: "Mira", text: "Uchtasini yig'ib kelsangiz, qishloqqa foyda bo'ladi." },
   ],
-  tom: [{ speaker: "Tom", text: "Xush kelibsiz! Urug' kerakmi, yoki hosilni sotmoqchimisiz?" }],
+  tom: [
+    { speaker: "Tom", text: "Xush kelibsiz! Mening do'konimga kiribsiz." },
+    { speaker: "Tom", text: "Urug' sotib oling yoki hosilingizni soting. Chiqish — yuqoridagi tugma." },
+  ],
   house: [{ speaker: "Uy", text: "Boboning uyi. Chang bosgan, lekin hali ham iliqlik saqlanadi." }],
   barn: [{ speaker: "Molxona", text: "Eski molxona. Keyinchalik hayvonlar uchun joy bo'ladi." }],
   gate_locked: [{ speaker: "", text: "Bu yo'l hozircha yopiq. Avval Miraga yordam bering." }],
