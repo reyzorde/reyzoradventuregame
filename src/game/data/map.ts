@@ -34,6 +34,7 @@ export function isWalkableTile(t: number): boolean {
 export function createGrid(): number[] {
   const g = new Array(MAP_COLS * MAP_ROWS).fill(T.Grass);
 
+  // Soft grass variation + sparse wildflowers (natural, not noisy)
   for (let i = 0; i < g.length; i++) {
     const n = (i * 1103515245 + 12345) >>> 0;
     if (n % 7 === 0) g[i] = T.Grass2;
@@ -50,10 +51,13 @@ export function createGrid(): number[] {
     }
   };
 
+  // Northern water + shore band
   fill(0, 0, MAP_COLS, 6, T.Water);
   fill(0, 6, MAP_COLS, 1, T.Shore);
+  // Small pier
   fill(34, 4, 4, 3, T.Wood);
 
+  // Path painter — width in tiles
   const path = (x0: number, y0: number, x1: number, y1: number, w = 2) => {
     let x = x0;
     let y = y0;
@@ -66,28 +70,51 @@ export function createGrid(): number[] {
     fill(x1 - half, y1 - half, w, w, T.Path);
   };
 
+  // === Road network (connects all hubs) ===
+  // Main east–west spine (farm / village artery)
   path(8, 20, 56, 20, 2);
+  // House spur (west)
   path(8, 14, 8, 20, 2);
   path(8, 14, 12, 14, 2);
+  // Farm access loop — around the field
   path(17, 20, 17, 15, 2);
   path(17, 15, 24, 15, 2);
   path(24, 15, 24, 20, 2);
+  // Well spur (east of farm)
   path(24, 17, 30, 17, 2);
-  path(13, 20, 13, 21, 2);
+  // Barn approach — short spur from main spine to barn front
+  path(13, 20, 13, 19, 2);
+  // Vertical artery toward south
   path(36, 8, 36, 40, 3);
+  // Village square approach
   path(36, 20, 46, 20, 2);
   path(46, 20, 46, 24, 2);
+  // Gate / forest road — continues east into forest so player can walk after unlock
   path(36, 14, 56, 14, 2);
   path(56, 14, 56, 12, 2);
+  // Forest trails (walkable Path tiles; gate collision is the story lock)
+  path(56, 12, 62, 12, 2);
+  path(58, 12, 58, 18, 2);
+  path(58, 10, 61, 10, 2);
+  path(60, 12, 60, 16, 2);
+  path(59, 16, 62, 16, 2);
+  path(61, 14, 61, 18, 2);
+  // Soft side trails (gameplay shortcuts, not noise)
   path(20, 20, 20, 24, 2);
   path(20, 24, 24, 24, 2);
   path(42, 20, 42, 16, 2);
   path(48, 24, 52, 24, 2);
   path(52, 24, 52, 20, 2);
 
-  // Tight farm pad for contiguous 3×3 crop cells
-  fill(18, 16, 5, 4, T.Dirt);
+  // === Farm soil pad — contiguous working rectangle ===
+  // Outer dirt apron (walkable) so the field reads as a planned plot, not random dirt
+  // Cols 18–22, rows 15–19
+  fill(18, 15, 5, 5, T.Dirt);
+  // Inner soil under the 3×3 crop cells (visual tilled field before player tills)
+  fill(19, 16, 3, 3, T.Soil);
+  // House yard
   fill(6, 13, 7, 5, T.Dirt);
+  // Village cobble plaza
   fill(42, 18, 9, 8, T.Cobble);
 
   return g;
@@ -118,8 +145,19 @@ export const INITIAL_PLOTS: PlotState[] = [
 ];
 
 export type ObjKind =
-  | "house" | "barn" | "well" | "shop" | "tree" | "pine"
-  | "gate" | "weed" | "rock" | "log" | "sign" | "mushroom" | "bush";
+  | "house"
+  | "barn"
+  | "well"
+  | "shop"
+  | "tree"
+  | "pine"
+  | "gate"
+  | "weed"
+  | "rock"
+  | "log"
+  | "sign"
+  | "mushroom"
+  | "bush";
 
 export interface WorldObj {
   id: string;
@@ -181,11 +219,13 @@ export const OBJECTS: WorldObj[] = [
   { id: "sign", kind: "sign", tx: 54, ty: 13, collide: true, interact: true },
 ];
 
+// Scattered canopy trees (off-path, natural clusters)
 const TREE_SPOTS: [number, number][] = [
   [3, 9], [5, 12], [15, 8], [18, 9], [22, 8], [27, 9],
   [40, 8], [48, 8], [52, 10], [60, 16], [62, 22],
   [4, 32], [7, 36], [16, 38], [24, 40], [32, 38],
   [48, 34], [54, 32], [60, 30], [14, 32], [28, 34],
+  // Keep clear of barn front (14,22) and farm pad
   [10, 26], [22, 28], [40, 28], [50, 28],
 ];
 TREE_SPOTS.forEach(([tx, ty], i) => {
@@ -199,6 +239,7 @@ TREE_SPOTS.forEach(([tx, ty], i) => {
   });
 });
 
+// Bushes — kept off farm pad, barn front, and main paths
 const BUSH_SPOTS: [number, number][] = [
   [5, 17], [11, 24], [26, 23], [33, 18], [38, 24],
   [41, 12], [49, 16], [53, 22], [11, 30], [20, 36],
@@ -216,6 +257,7 @@ BUSH_SPOTS.forEach(([tx, ty], i) => {
   });
 });
 
+// Weeds on farm apron only (never on plot cells 19–21 × 16–18)
 (
   [
     ["w1", 18, 16, 0],
@@ -224,8 +266,9 @@ BUSH_SPOTS.forEach(([tx, ty], i) => {
     ["w4", 22, 16, 0],
     ["w5", 22, 17, 1],
     ["w6", 22, 18, 2],
-    ["w7", 20, 15, 0],
-    ["w8", 20, 19, 1],
+    ["w7", 19, 15, 0],
+    ["w8", 21, 15, 1],
+    ["w9", 20, 19, 2],
   ] as const
 ).forEach(([id, tx, ty, v]) => {
   OBJECTS.push({
@@ -247,10 +290,21 @@ OBJECTS.push(
   { id: "log-3", kind: "log", tx: 26, ty: 36, interact: true },
 );
 
+// Forest zone east of gate
 (
   [
-    [57, 8], [59, 7], [61, 9], [58, 11], [60, 13], [62, 12],
-    [59, 15], [61, 17], [57, 18], [63, 14], [62, 19], [58, 21],
+    [57, 8],
+    [59, 7],
+    [61, 9],
+    [58, 11],
+    [60, 13],
+    [62, 12],
+    [59, 15],
+    [61, 17],
+    [57, 18],
+    [63, 14],
+    [62, 19],
+    [58, 21],
   ] as const
 ).forEach(([tx, ty], i) => {
   OBJECTS.push({
@@ -284,10 +338,13 @@ OBJECTS.push(
 OBJECTS.push({ id: "forest-sign", kind: "sign", tx: 57, ty: 13, collide: true, interact: true });
 
 export const NPCS = [
+  // Mira near village plaza
   { id: "mira" as const, tx: 47, ty: 23 },
+  // Tom stands in front of the shop (shop tile 44,17)
   { id: "tom" as const, tx: 44, ty: 19 },
 ];
 
+/** Spawn on path near house */
 export const PLAYER_SPAWN = { x: 10 * TILE + 24, y: 20 * TILE + 24 };
 
 export const tw = (c: number, r: number) => ({
@@ -295,6 +352,7 @@ export const tw = (c: number, r: number) => ({
   y: r * TILE + TILE / 2,
 });
 
+/** Default animals — Level 1: cows (pasture) + fish (pond). No chickens. */
 export const INITIAL_ANIMALS: AnimalSave[] = [
   { id: "cow-1", kind: "cow", x: 22 * TILE + 24, y: 30 * TILE + 24, lastCollect: 0 },
   { id: "cow-2", kind: "cow", x: 26 * TILE + 24, y: 32 * TILE + 24, lastCollect: 0 },
@@ -303,6 +361,7 @@ export const INITIAL_ANIMALS: AnimalSave[] = [
   { id: "fish-3", kind: "fish", x: 40 * TILE + 24, y: 3 * TILE + 24, lastCollect: 0 },
 ];
 
+/** Map landmark labels (tile coords) for minimap */
 export const MAP_LANDMARKS = [
   { id: "house", label: "Uy", tx: 9, ty: 11 },
   { id: "farm", label: "Ferma", tx: 20, ty: 17 },
