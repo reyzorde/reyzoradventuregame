@@ -146,8 +146,15 @@ export class GameModel extends GameModelBase {
     this.openDialogue(D.mira_idle);
   }
 
+  /** Outdoor shop door — enter interior (no outdoor Tom) */
+  enterShop(): void {
+    this.shopOpen = true;
+    sfx("open");
+    this.emit();
+  }
+  /** @deprecated use enterShop — kept for any leftover callers */
   talkTom(): void {
-    this.openDialogue(D.tom, () => this.openShop());
+    this.enterShop();
   }
 
   openShop(): void { this.shopOpen = true; sfx("ui"); this.emit(); }
