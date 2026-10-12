@@ -8,6 +8,8 @@ let musicTimer: number | null = null;
 
 function ac(): AudioContext | null {
   if (typeof window === "undefined") return null;
+  // Never create until unlockAudio() after a user gesture (browser autoplay policy)
+  if (!unlocked) return null;
   if (!ctx) {
     const C = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!C) return null;
@@ -17,11 +19,15 @@ function ac(): AudioContext | null {
 }
 
 export function unlockAudio(): void {
-  const a = ac();
-  if (!a) return;
-  if (a.state === "suspended") void a.resume();
+  if (typeof window === "undefined") return;
   unlocked = true;
-  // Soft ambient starts after first user gesture (Chrome autoplay policy)
+  if (!ctx) {
+    const C = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!C) return;
+    ctx = new C();
+  }
+  if (ctx.state === "suspended") void ctx.resume();
+  // Soft ambient starts after first user gesture
   startMusic();
 }
 
@@ -63,15 +69,13 @@ function tone(freq: number, dur: number, type: OscillatorType, gain = 0.05, slid
 export function startMusic(): void {
   const a = ac();
   if (!a || !unlocked || musicNodes) return;
-  // G major pentatonic-ish: calm, not busy
-  const pad = [196.0, 220.0, 246.94, 293.66]; // G3 A3 B3 D4
+  const pad = [196.0, 220.0, 246.94, 293.66];
   const melody = [196, 220, 246.94, 293.66, 329.63, 293.66, 246.94, 220];
   musicNodes = pad.map((f, i) => {
     const o = a.createOscillator();
     const g = a.createGain();
     o.type = i % 2 === 0 ? "sine" : "triangle";
     o.frequency.value = f;
-    // Very soft bed — should not tire the player
     g.gain.value = 0.006 * musicVol * (i === 0 ? 1.1 : 0.55);
     o.connect(g);
     g.connect(a.destination);
@@ -82,9 +86,7 @@ export function startMusic(): void {
   musicTimer = window.setInterval(() => {
     if (!musicNodes || !a) return;
     const f = melody[i % melody.length];
-    // Gentle glide on the lead voice only
     musicNodes[0].o.frequency.setTargetAtTime(f, a.currentTime, 0.8);
-    // Soft swell
     const t = a.currentTime;
     musicNodes[0].g.gain.setTargetAtTime(0.008 * musicVol, t, 0.3);
     musicNodes[0].g.gain.setTargetAtTime(0.005 * musicVol, t + 1.2, 0.5);
@@ -106,7 +108,8 @@ export function stopMusic(): void {
 }
 
 export function sfx(id: string, now = 0): void {
-  unlockAudio();
+  // Do not create AudioContext here — only play after unlockAudio() from a gesture
+  if (!unlocked) return;
   switch (id) {
     case "ui": tone(520, 0.06, "triangle", 0.04); break;
     case "plant": tone(220, 0.12, "sine", 0.05, 40); break;
