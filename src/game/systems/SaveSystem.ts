@@ -3,7 +3,6 @@ import {
   SAVE_KEY,
   SAVE_VERSION,
   START_COINS,
-  WATER_MAX,
   defaultUpgradeLevels,
   emptyInv,
   upgradeValue,
@@ -41,31 +40,27 @@ function mergePlots(defaults: PlotState[], loaded?: PlotState[]): PlotState[] {
   return defaults.map((d) => {
     const f = byId.get(d.id);
     if (!f) return { ...d };
-    // Keep layout positions (col/row) from current map; preserve crop progress
     return {
       ...d,
       state: f.state ?? d.state,
       cropId: f.cropId ?? d.cropId,
       plantedAt: f.plantedAt ?? d.plantedAt,
       wateredAt: f.wateredAt ?? d.wateredAt,
-      unlocked: Boolean(f.unlocked || d.unlocked),
+      unlocked: f.unlocked ?? d.unlocked,
     };
   });
 }
 
-function migrateUpgradeLevels(raw: Partial<GameSave>): Record<UpgradeId, number> {
+function migrateUpgradeLevels(p: Partial<GameSave>): Record<UpgradeId, number> {
   const base = defaultUpgradeLevels();
-  const from = raw.upgradeLevels;
-  if (from && typeof from === "object") {
-    return {
-      water_cap: Math.max(0, Number(from.water_cap) || 0),
-      move_speed: Math.max(0, Number(from.move_speed) || 0),
-    };
+  const levels = p.upgradeLevels;
+  if (levels && typeof levels.water_cap === "number") {
+    base.water_cap = levels.water_cap;
+    base.move_speed = levels.move_speed ?? 0;
+    return base;
   }
-  // v1 saves: derive water level from waterMax if possible
-  const wm = Number(raw.waterMax) || WATER_MAX;
-  if (wm > WATER_MAX) {
-    // approximate level from capacity
+  const wm = p.waterMax;
+  if (typeof wm === "number") {
     const vals = [5, 6, 7, 8, 10, 12];
     let lv = 0;
     for (let i = 0; i < vals.length; i++) if (vals[i] <= wm) lv = i;
@@ -111,7 +106,6 @@ export function loadSave(): GameSave | null {
       plots: mergePlots(base.plots, p.plots),
       weedsCleared: p.weedsCleared ?? [],
       pickupsTaken: p.pickupsTaken ?? [],
-      // Drop legacy chicken entries from older saves
       animals: (p.animals?.length ? p.animals : base.animals)
         .filter((a) => a && (a as { kind: string }).kind !== "chicken" && (a.kind === "cow" || a.kind === "fish"))
         .map((a) => ({ ...a, kind: a.kind as "cow" | "fish" })),
@@ -125,11 +119,15 @@ export function loadSave(): GameSave | null {
 export function writeSave(save: GameSave): void {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-    // clean old key after successful v2 write
     localStorage.removeItem("reyzor-adventure-save-v1");
   } catch {
     /* private mode */
   }
+}
+
+/** Alias used by GameModelBase */
+export function saveSave(save: GameSave): void {
+  writeSave(save);
 }
 
 export function clearSave(): void {
