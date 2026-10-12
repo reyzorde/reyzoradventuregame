@@ -27,7 +27,6 @@ export function unlockAudio(): void {
     ctx = new C();
   }
   if (ctx.state === "suspended") void ctx.resume();
-  // Soft ambient starts after first user gesture
   startMusic();
 }
 
@@ -37,10 +36,11 @@ export function setSfxVolume(v: number): void {
 
 export function setMusicVolume(v: number): void {
   musicVol = Math.max(0, Math.min(1, v));
-  if (musicNodes) {
-    for (const n of musicNodes) {
-      n.g.gain.setTargetAtTime(0.012 * musicVol, ac()!.currentTime, 0.05);
-    }
+  if (!musicNodes) return;
+  const a = ac();
+  if (!a) return;
+  for (const n of musicNodes) {
+    n.g.gain.setTargetAtTime(0.012 * musicVol, a.currentTime, 0.05);
   }
 }
 
@@ -68,7 +68,7 @@ function tone(freq: number, dur: number, type: OscillatorType, gain = 0.05, slid
 /** Soft pastoral ambient — low volume, slow pentatonic drift (no external files) */
 export function startMusic(): void {
   const a = ac();
-n  if (!a || !unlocked || musicNodes) return;
+  if (!a || !unlocked || musicNodes) return;
   const pad = [196.0, 220.0, 246.94, 293.66];
   const melody = [196, 220, 246.94, 293.66, 329.63, 293.66, 246.94, 220];
   musicNodes = pad.map((f, i) => {
@@ -108,7 +108,6 @@ export function stopMusic(): void {
 }
 
 export function sfx(id: string, now = 0): void {
-  // Do not create AudioContext here — only play after unlockAudio() from a gesture
   if (!unlocked) return;
   switch (id) {
     case "ui": tone(520, 0.06, "triangle", 0.04); break;
