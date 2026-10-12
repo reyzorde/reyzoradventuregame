@@ -68,7 +68,7 @@ function tone(freq: number, dur: number, type: OscillatorType, gain = 0.05, slid
 /** Soft pastoral ambient — low volume, slow pentatonic drift (no external files) */
 export function startMusic(): void {
   const a = ac();
-  if (!a || !unlocked || musicNodes) return;
+n  if (!a || !unlocked || musicNodes) return;
   const pad = [196.0, 220.0, 246.94, 293.66];
   const melody = [196, 220, 246.94, 293.66, 329.63, 293.66, 246.94, 220];
   musicNodes = pad.map((f, i) => {
