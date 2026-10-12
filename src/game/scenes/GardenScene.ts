@@ -277,7 +277,19 @@ export class GardenScene extends GardenSceneBase {
       consider({ kind: "well", id: "well", x: p.x, y: p.y + 20, hint: "E — Suv olish", run: () => { this.model.fillWater(); this.splash(p.x, p.y); } });
     }
     if (this.npcs.mira) consider({ kind: "npc", id: "mira", x: this.npcs.mira.x, y: this.npcs.mira.y, hint: "E — Mira bilan gaplashish", run: () => this.model.talkMira() });
-    if (this.npcs.tom) consider({ kind: "npc", id: "tom", x: this.npcs.tom.x, y: this.npcs.tom.y, hint: "E — Tomning do'koni", run: () => this.model.talkTom() });
+    // Shop exterior — enter interior (Tom is inside, no outdoor NPC)
+    const shop = OBJECTS.find((x) => x.id === "shop");
+    if (shop) {
+      const p = tw(shop.tx, shop.ty);
+      consider({
+        kind: "shop",
+        id: "shop",
+        x: p.x,
+        y: p.y + 36,
+        hint: "E — Do'konga kirish",
+        run: () => this.model.enterShop(),
+      });
+    }
     for (const id of ["house", "barn"] as const) {
       const o = OBJECTS.find((x) => x.id === id);
       if (!o) continue;
