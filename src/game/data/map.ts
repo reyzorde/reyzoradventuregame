@@ -16,15 +16,8 @@ export const T = {
   Flowers: 10,
 } as const;
 
-/** Player may stand on these tiles only (paths, farm, village, shore) */
 export const WALKABLE = new Set<number>([
-  T.Path,
-  T.Dirt,
-  T.Soil,
-  T.SoilWet,
-  T.Cobble,
-  T.Shore,
-  T.Wood,
+  T.Path, T.Dirt, T.Soil, T.SoilWet, T.Cobble, T.Shore, T.Wood,
 ]);
 
 export function isWalkableTile(t: number): boolean {
@@ -33,30 +26,23 @@ export function isWalkableTile(t: number): boolean {
 
 export function createGrid(): number[] {
   const g = new Array(MAP_COLS * MAP_ROWS).fill(T.Grass);
-
   for (let i = 0; i < g.length; i++) {
     const n = (i * 1103515245 + 12345) >>> 0;
     if (n % 7 === 0) g[i] = T.Grass2;
     else if (n % 23 === 0) g[i] = T.Flowers;
   }
-
   const fill = (x: number, y: number, w: number, h: number, t: number) => {
     for (let row = y; row < y + h; row++) {
       for (let col = x; col < x + w; col++) {
-        if (col >= 0 && row >= 0 && col < MAP_COLS && row < MAP_ROWS) {
-          g[row * MAP_COLS + col] = t;
-        }
+        if (col >= 0 && row >= 0 && col < MAP_COLS && row < MAP_ROWS) g[row * MAP_COLS + col] = t;
       }
     }
   };
-
   fill(0, 0, MAP_COLS, 6, T.Water);
   fill(0, 6, MAP_COLS, 1, T.Shore);
   fill(34, 4, 4, 3, T.Wood);
-
   const path = (x0: number, y0: number, x1: number, y1: number, w = 2) => {
-    let x = x0;
-    let y = y0;
+    let x = x0, y = y0;
     const half = Math.floor(w / 2);
     while (x !== x1 || y !== y1) {
       fill(x - half, y - half, w, w, T.Path);
@@ -65,7 +51,6 @@ export function createGrid(): number[] {
     }
     fill(x1 - half, y1 - half, w, w, T.Path);
   };
-
   path(8, 20, 56, 20, 2);
   path(8, 14, 8, 20, 2);
   path(8, 14, 12, 14, 2);
@@ -79,7 +64,6 @@ export function createGrid(): number[] {
   path(46, 20, 46, 24, 2);
   path(36, 14, 56, 14, 2);
   path(56, 14, 56, 12, 2);
-  // Forest trails (walkable after gate unlock)
   path(56, 12, 62, 12, 2);
   path(58, 12, 58, 18, 2);
   path(58, 10, 61, 10, 2);
@@ -91,12 +75,10 @@ export function createGrid(): number[] {
   path(42, 20, 42, 16, 2);
   path(48, 24, 52, 24, 2);
   path(52, 24, 52, 20, 2);
-
   fill(18, 15, 5, 5, T.Dirt);
   fill(19, 16, 3, 3, T.Soil);
   fill(6, 13, 7, 5, T.Dirt);
   fill(42, 18, 9, 8, T.Cobble);
-
   return g;
 }
 
@@ -146,15 +128,7 @@ const BUSH_SPOTS: [number, number][] = [
   [35, 32], [45, 30], [8, 25], [29, 28],
 ];
 BUSH_SPOTS.forEach(([tx, ty], i) => {
-  OBJECTS.push({
-    id: `bush-${i}`,
-    kind: "bush",
-    tx,
-    ty,
-    collide: true,
-    variant: i % 3,
-    body: { ox: 8, oy: 16, w: 20, h: 12 },
-  });
+  OBJECTS.push({ id: `bush-${i}`, kind: "bush", tx, ty, collide: true, variant: i % 3, body: { ox: 8, oy: 16, w: 20, h: 12 } });
 });
 
 (
@@ -166,7 +140,7 @@ BUSH_SPOTS.forEach(([tx, ty], i) => {
 
 OBJECTS.push(
   { id: "rock-1", kind: "rock", tx: 32, ty: 28, interact: true },
-  { id: "rock-2", kind: "rock", tx: 2, ty: 24, interact: true },
+  { id: "rock-2", kind: "rock", tx: 52, ty: 24, interact: true },
   { id: "rock-3", kind: "rock", tx: 14, ty: 34, interact: true },
   { id: "log-1", kind: "log", tx: 8, ty: 32, interact: true },
   { id: "log-2", kind: "log", tx: 58, ty: 28, interact: true },
@@ -188,7 +162,6 @@ OBJECTS.push(
 OBJECTS.push({ id: "forest-sign", kind: "sign", tx: 57, ty: 13, collide: true, interact: true });
 
 export const NPCS = [
-  // Mira near village plaza — Tom is only inside the shop (no outdoor sprite)
   { id: "mira" as const, tx: 47, ty: 23 },
 ];
 
