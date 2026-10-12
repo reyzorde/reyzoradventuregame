@@ -144,7 +144,6 @@ button:disabled{cursor:not-allowed;opacity:.45}
   display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
 }
 
-/* Resource + tool buttons */
 .res-group{display:flex;gap:6px}
 .res-pill{
   display:flex;align-items:center;gap:5px;
@@ -167,36 +166,6 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .tool-btn:hover{background:rgba(60,48,30,.9)}
 .tool-btn:active{transform:scale(.94)}
 
-.quest{
-  position:absolute;top:72px;left:12px;
-  width:min(calc(100% - 24px),270px);
-  padding:12px 14px;
-  background:rgba(251,244,230,.9);
-}
-.quest .lab{
-  font-size:10px;font-weight:800;
-  letter-spacing:.1em;text-transform:uppercase;
-  color:var(--sage-soft);
-}
-.quest h3{margin:4px 0 0;font-family:var(--d);font-size:1rem;color:var(--ink)}
-.quest p{margin:4px 0 0;font-size:12px;color:var(--muted);line-height:1.35}
-.bar{
-  margin-top:8px;height:6px;border-radius:999px;
-  background:rgba(201,168,108,.25);overflow:hidden;
-}
-.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--sage-soft),var(--sage));border-radius:999px}
-.meta{margin-top:6px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
-.quest-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
-.qmin{background:transparent;border:none;font-size:14px;color:var(--muted);padding:0 4px}
-.quest.collapsed{padding:8px 12px}
-
-.tut{
-  position:absolute;top:12px;left:50%;transform:translateX(-50%);
-  width:min(92vw,400px);text-align:center;
-  padding:10px 14px;font-weight:700;font-size:13px;
-  border:1px solid rgba(201,168,108,.5);
-  background:rgba(251,244,230,.93);
-}
 .ih{
   position:absolute;bottom:110px;left:50%;transform:translateX(-50%);
   background:rgba(45,36,22,.82);color:var(--cream);
@@ -205,7 +174,6 @@ button:disabled{cursor:not-allowed;opacity:.45}
   box-shadow:var(--shadow-sm);
 }
 
-/* Bottom hotbar */
 .hotbar{
   position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
   display:flex;gap:6px;z-index:15;
@@ -257,7 +225,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 
 .dlg-wrap{
   position:absolute;left:50%;bottom:100px;transform:translateX(-50%);
-  width:min(92vw,460px);z-index:30;
+  width:min(92vw,460px);z-index:50;
 }
 .dlg-card{
   padding:14px 16px;
@@ -423,6 +391,13 @@ button:disabled{cursor:not-allowed;opacity:.45}
   box-shadow:0 4px 0 var(--sage-d);
   border:none;
 }
+.be.bj{
+  width:52px;height:52px;font-size:18px;
+  background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+  box-shadow:0 4px 0 var(--earth);
+  margin-left:10px;
+}
+.mob .be{display:inline-flex;align-items:center;justify-content:center}
 
 @media(max-width:820px){
   .mob{display:flex}
@@ -430,4 +405,49 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .hotbar{bottom:12px;padding:5px 6px;gap:4px}
   .slot{width:44px;height:44px}
   .slot .ic{font-size:18px}
+}
+
+/* Shop interior — full screen static room (no world movement) */
+.shop-interior{
+  position:absolute;inset:0;z-index:40;
+  display:flex;align-items:flex-end;justify-content:center;
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  padding:16px;
+}
+.shop-veil{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(20,14,8,.15) 0%,rgba(20,14,8,.55) 100%);
+  pointer-events:none;
+}
+.shop-panel{
+  position:relative;z-index:1;
+  width:min(100%,520px);
+  max-height:min(78vh,560px);
+  overflow:auto;
+  padding:16px 18px 18px;
+  background:rgba(251,244,230,.94);
+  border:1px solid rgba(201,168,108,.55);
+  border-radius:18px;
+  box-shadow:var(--shadow);
+  margin-bottom:8px;
+}
+.shop-tom{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  padding:10px 12px;margin:8px 0 12px;
+  background:rgba(61,107,62,.1);
+  border:1px solid rgba(61,107,62,.2);
+  border-radius:12px;
+}
+.shop-tom-av{font-size:28px;line-height:1}
+.shop-tom-line{
+  flex:1;min-width:140px;margin:0;
+  font-size:13px;font-weight:700;color:var(--ink);
+}
+.shop-rows{display:flex;flex-direction:column;gap:8px}
+.shop-panel .xbtn{
+  white-space:nowrap;
+  width:auto;padding:6px 12px;border-radius:10px;
+  font-size:12px;font-weight:800;
 }
