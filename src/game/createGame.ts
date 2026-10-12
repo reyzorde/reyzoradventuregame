@@ -33,7 +33,7 @@ class BootScene extends Phaser.Scene {
     this.load.image("weed1", `${a}/weed1.png`);
     this.load.image("weed2", `${a}/weed2.png`);
     this.load.image("flower_daisy", `${a}/flower_daisy.png`);
-   n    this.load.image("flower_poppy", `${a}/flower_poppy.png`);
+    this.load.image("flower_poppy", `${a}/flower_poppy.png`);
     this.load.image("flower_lavender", `${a}/flower_lavender.png`);
     for (const crop of ["carrot", "tomato", "strawberry"] as const) {
       for (let i = 0; i < 4; i++) this.load.image(`crop_${crop}_${i}`, `${a}/crop_${crop}_${i}.png`);
