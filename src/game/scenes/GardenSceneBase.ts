@@ -134,8 +134,23 @@ export class GardenSceneBase extends Phaser.Scene {
     }
     const key = o.kind === "pine" ? "pine" : o.kind;
     const s = this.add.image(x, footY, key).setOrigin(0.5, 1).setDepth(footY);
-    if (o.kind === "shop") s.setScale(1.35);
-    if (o.kind === "house" || o.kind === "barn") s.setScale(1.1);
+    // Fit buildings to tile world — shop art was fullscreen-wide
+    const box: Partial<Record<string, [number, number]>> = {
+      shop: [240, 150],
+      house: [210, 210],
+      barn: [230, 230],
+      well: [96, 96],
+      gate: [120, 90],
+      tree: [140, 180],
+      pine: [120, 170],
+      sign: [42, 56],
+    };
+    const b = box[o.kind];
+    if (b && s.width > 0 && s.height > 0) {
+      s.setScale(Math.min(b[0] / s.width, b[1] / s.height));
+    } else if (o.kind === "house" || o.kind === "barn") {
+      s.setScale(1.1);
+    }
     // Gate: always draw sprite; collision only while locked
     if (o.kind === "gate") {
       this.gateSprite = s;
@@ -186,6 +201,7 @@ export class GardenSceneBase extends Phaser.Scene {
     const { x, y } = this.model.save.player;
     this.facing = this.model.save.player.facing;
     this.player = this.physics.add.sprite(x, y, "player");
+    // Art sprites ~29x64 — feet collision box (keep default origin for stable arcade body)
     this.player.setSize(14, 12).setOffset(8, 50);
     this.player.setCollideWorldBounds(true).setDepth(y);
     this.physics.add.collider(this.player, this.layer);
@@ -196,7 +212,8 @@ export class GardenSceneBase extends Phaser.Scene {
     for (const n of NPCS) {
       const { x, y } = tw(n.tx, n.ty);
       const s = this.physics.add.sprite(x, y, n.id);
-      s.setScale(1.65);
+      // Cap NPC height so large PNGs don't dominate; boost small pixel art
+      if (s.height > 0) s.setScale(s.height > 90 ? 120 / s.height : 1.65);
       s.setImmovable(true).setSize(18, 14).setOffset(4, 52).setDepth(y);
       this.physics.add.collider(this.player, s);
       this.npcs[n.id] = s;
