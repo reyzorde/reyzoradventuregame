@@ -29,7 +29,7 @@ export function createNewSave(): GameSave {
     tutorialStep: 0,
     miraIntroDone: false,
     miraCarrotsGiven: false,
-    animals: INITIAL_ANIMALS.map((a) => ({ ...a })),
+    animals: [],
     audio: { music: 0.35, sfx: 0.7 },
   };
 }
@@ -106,9 +106,7 @@ export function loadSave(): GameSave | null {
       plots: mergePlots(base.plots, p.plots),
       weedsCleared: p.weedsCleared ?? [],
       pickupsTaken: p.pickupsTaken ?? [],
-      animals: (p.animals?.length ? p.animals : base.animals)
-        .filter((a) => a && (a as { kind: string }).kind !== "chicken" && (a.kind === "cow" || a.kind === "fish"))
-        .map((a) => ({ ...a, kind: a.kind as "cow" | "fish" })),
+      animals: [],
       audio: { music: 0.35, sfx: 0.7, ...p.audio },
     };
   } catch {
@@ -125,7 +123,6 @@ export function writeSave(save: GameSave): void {
   }
 }
 
-/** Alias used by GameModelBase */
 export function saveSave(save: GameSave): void {
   writeSave(save);
 }
