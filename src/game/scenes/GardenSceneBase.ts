@@ -31,7 +31,6 @@ export class GardenSceneBase extends Phaser.Scene {
   protected animals: Phaser.Physics.Arcade.Sprite[] = [];
   protected waterFx: Phaser.GameObjects.TileSprite | null = null;
   protected boundCd = 0;
-  /** Gate collision zone — removed when forest is unlocked */
   protected gateBlocker: Phaser.GameObjects.Zone | null = null;
   protected gateSprite: Phaser.GameObjects.Image | null = null;
 
@@ -69,26 +68,19 @@ export class GardenSceneBase extends Phaser.Scene {
   }
 
   protected buildMap(): void {
-    if (!this.textures.exists("tileset") && !this.textures.exists("tiles")) {
-      generateProceduralTextures(this);
-    }
+    if (!this.textures.exists("tileset") && !this.textures.exists("tiles")) generateProceduralTextures(this);
     const flat = createGrid();
     const data: number[][] = [];
     for (let y = 0; y < MAP_ROWS; y++) data.push(flat.slice(y * MAP_COLS, (y + 1) * MAP_COLS));
     const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
-    const texKey = this.textures.exists("tileset")
-      ? "tileset"
-      : this.textures.exists("tiles")
-        ? "tiles"
-        : null;
+    const texKey = this.textures.exists("tileset") ? "tileset" : this.textures.exists("tiles") ? "tiles" : null;
     if (!texKey) {
-      console.error("[GardenScene] No tileset texture — map layer skipped");
+      console.error("[GardenScene] No tileset texture");
       this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
       return;
     }
     const ts = map.addTilesetImage(texKey, texKey, TILE, TILE, 0, 0);
     if (!ts) {
-      console.error("[GardenScene] addTilesetImage failed for", texKey);
       this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
       return;
     }
@@ -129,41 +121,28 @@ export class GardenSceneBase extends Phaser.Scene {
       this.pickups.set(o.id, s);
       return;
     }
-    if ((o.id.startsWith("ftree-") || o.id === "forest-sign") && !this.model.save.upgrades.forestOpen) {
-      return;
-    }
+    if ((o.id.startsWith("ftree-") || o.id === "forest-sign") && !this.model.save.upgrades.forestOpen) return;
     const key = o.kind === "pine" ? "pine" : o.kind;
     const s = this.add.image(x, footY, key).setOrigin(0.5, 1).setDepth(footY);
-    // Fit buildings to tile world — shop art was fullscreen-wide
     const box: Partial<Record<string, [number, number]>> = {
-      shop: [240, 150],
-      house: [210, 210],
-      barn: [230, 230],
-      well: [96, 96],
-      gate: [120, 90],
-      tree: [140, 180],
-      pine: [120, 170],
-      sign: [42, 56],
+      shop: [240, 150], house: [210, 210], barn: [230, 230], well: [96, 96],
+      gate: [120, 90], tree: [140, 180], pine: [120, 170], sign: [42, 56],
     };
     const b = box[o.kind];
-    if (b && s.width > 0 && s.height > 0) {
-      s.setScale(Math.min(b[0] / s.width, b[1] / s.height));
-    } else if (o.kind === "house" || o.kind === "barn") {
-      s.setScale(1.1);
-    }
-    // Gate: always draw sprite; collision only while locked
+    if (b && s.width > 0 && s.height > 0) s.setScale(Math.min(b[0] / s.width, b[1] / s.height));
+    else if (o.kind === "house" || o.kind === "barn") s.setScale(1.1);
+    s.setDepth(footY);
     if (o.kind === "gate") {
       this.gateSprite = s;
       if (this.model.save.upgrades.forestOpen) {
         s.setAlpha(0.88);
         s.setTint(0xc8e8c0);
       } else if (o.collide) {
-        const b = o.body ?? { ox: 8, oy: 32, w: 72, h: 28 };
+        const bb = o.body ?? { ox: 8, oy: 32, w: 72, h: 28 };
         const z = this.add.zone(
-          x - s.displayWidth / 2 + b.ox + b.w / 2,
-          footY - s.displayHeight + b.oy + b.h / 2,
-          b.w,
-          b.h,
+          x - s.displayWidth / 2 + bb.ox + bb.w / 2,
+          footY - s.displayHeight + bb.oy + bb.h / 2,
+          bb.w, bb.h,
         );
         this.physics.add.existing(z, true);
         this.blockers.add(z);
@@ -172,36 +151,27 @@ export class GardenSceneBase extends Phaser.Scene {
       return;
     }
     if (o.collide) {
-      const b = o.body ?? { ox: 20, oy: 50, w: 40, h: 20 };
+      const bb = o.body ?? { ox: 20, oy: 50, w: 40, h: 20 };
       const scale = s.scaleX;
       const z = this.add.zone(
-        x - (s.width * scale) / 2 + b.ox * scale + (b.w * scale) / 2,
-        footY - s.height * scale + b.oy * scale + (b.h * scale) / 2,
-        b.w * scale,
-        b.h * scale,
+        x - (s.width * scale) / 2 + bb.ox * scale + (bb.w * scale) / 2,
+        footY - s.height * scale + bb.oy * scale + (bb.h * scale) / 2,
+        bb.w * scale, bb.h * scale,
       );
       this.physics.add.existing(z, true);
       this.blockers.add(z);
     }
   }
 
-  /** Remove gate collision and show open visual (call when forest unlocks) */
   protected openGatePassage(): void {
-    if (this.gateBlocker) {
-      this.gateBlocker.destroy();
-      this.gateBlocker = null;
-    }
-    if (this.gateSprite) {
-      this.gateSprite.setAlpha(0.88);
-      this.gateSprite.setTint(0xc8e8c0);
-    }
+    if (this.gateBlocker) { this.gateBlocker.destroy(); this.gateBlocker = null; }
+    if (this.gateSprite) { this.gateSprite.setAlpha(0.88); this.gateSprite.setTint(0xc8e8c0); }
   }
 
   protected spawnPlayer(): void {
     const { x, y } = this.model.save.player;
     this.facing = this.model.save.player.facing;
     this.player = this.physics.add.sprite(x, y, "player");
-    // Art sprites ~29x64 — feet collision box (keep default origin for stable arcade body)
     this.player.setSize(14, 12).setOffset(8, 50);
     this.player.setCollideWorldBounds(true).setDepth(y);
     this.physics.add.collider(this.player, this.layer);
@@ -212,7 +182,6 @@ export class GardenSceneBase extends Phaser.Scene {
     for (const n of NPCS) {
       const { x, y } = tw(n.tx, n.ty);
       const s = this.physics.add.sprite(x, y, n.id);
-      // Cap NPC height so large PNGs don't dominate; boost small pixel art
       if (s.height > 0) s.setScale(s.height > 90 ? 120 / s.height : 1.65);
       s.setImmovable(true).setSize(18, 14).setOffset(4, 52).setDepth(y);
       this.physics.add.collider(this.player, s);
@@ -222,66 +191,11 @@ export class GardenSceneBase extends Phaser.Scene {
 
   protected spawnAnimals(): void {
     this.animals = [];
-    for (const a of this.model.save.animals) {
-      const key = a.kind === "cow" ? "cow" : "fish";
-      const s = this.physics.add.sprite(a.x, a.y, key);
-      s.setData("id", a.id);
-      s.setData("kind", a.kind);
-      s.setData("state", "idle");
-      s.setData("timer", 500 + Math.random() * 1500);
-      s.setData("vx", 0);
-      s.setData("vy", 0);
-      if (a.kind === "fish") {
-        s.setDepth(2);
-        s.setAlpha(0.9);
-      } else {
-        s.setDepth(a.y);
-        s.setSize(16, 10).setOffset(8, 18);
-        this.physics.add.collider(s, this.blockers);
-        this.physics.add.collider(s, this.layer);
-      }
-      this.animals.push(s);
-    }
+    // Animals temporarily disabled
   }
 
-  protected updateAnimals(dt: number): void {
-    for (const s of this.animals) {
-      const kind = s.getData("kind") as string;
-      let timer = (s.getData("timer") as number) - dt;
-      let state = s.getData("state") as string;
-      if (timer <= 0) {
-        if (state === "idle") {
-          state = "walk";
-          const ang = Math.random() * Math.PI * 2;
-          const spd = kind === "cow" ? 28 : 36;
-          s.setData("vx", Math.cos(ang) * spd);
-          s.setData("vy", Math.sin(ang) * spd);
-          timer = 800 + Math.random() * 1600;
-        } else {
-          state = "idle";
-          s.setData("vx", 0);
-          s.setData("vy", 0);
-          timer = 600 + Math.random() * 1400;
-        }
-        s.setData("state", state);
-      }
-      s.setData("timer", timer);
-      const vx = s.getData("vx") as number;
-      const vy = s.getData("vy") as number;
-      if (kind === "fish") {
-        let nx = s.x + vx * (dt / 1000);
-        let ny = s.y + vy * (dt / 1000);
-        if (ny < 20 || ny > 5.5 * 48) { s.setData("vy", -vy); ny = s.y; }
-        if (nx < 40 || nx > WORLD_W - 40) { s.setData("vx", -vx); nx = s.x; }
-        s.setPosition(nx, ny);
-      } else {
-        s.setVelocity(vx, vy);
-        s.setDepth(s.y);
-      }
-      const id = s.getData("id") as string;
-      const a = this.model.save.animals.find((x) => x.id === id);
-      if (a) { a.x = s.x; a.y = s.y; }
-    }
+  protected updateAnimals(_dt: number): void {
+    /* disabled */
   }
 
   protected spawnPlots(): void {
@@ -327,9 +241,7 @@ export class GardenSceneBase extends Phaser.Scene {
     window.__gameModel = this.model;
   }
 
-  protected onResize = (): void => {
-    this.cameras.main.setZoom(1.18);
-  };
+  protected onResize = (): void => { this.cameras.main.setZoom(1.18); };
 
   protected cleanup(): void {
     this.unsub?.(); this.unsub = null;
@@ -337,5 +249,5 @@ export class GardenSceneBase extends Phaser.Scene {
     this.input.keyboard?.removeAllListeners();
   }
 
-  protected tryInteract(): void { /* overridden in GardenScene */ }
+  protected tryInteract(): void { /* overridden */ }
 }
